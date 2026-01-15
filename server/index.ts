@@ -19,6 +19,7 @@ enum GameState {
   LEVEL_SELECTION = 'LEVEL_SELECTION',
   ANSWERING_QUESTION = 'ANSWERING_QUESTION',
   SHOWING_RESULT = 'SHOWING_RESULT',
+  SHOWING_POPUP = 'SHOWING_POPUP',
   GAME_OVER = 'GAME_OVER'
 }
 
@@ -279,8 +280,8 @@ function broadcastResults(session: GameSession): void {
 // ===== STATE TRANSITION FUNCTIONS =====
 
 function transitionToLevelSelection(session: GameSession): void {
-  // Guard: Can only transition from WAITING, SHOWING_RESULT
-  if (![GameState.WAITING, GameState.SHOWING_RESULT].includes(session.currentState)) {
+  // Guard: Can only transition from WAITING, SHOWING_RESULT, SHOWING_POPUP
+  if (![GameState.WAITING, GameState.SHOWING_RESULT, GameState.SHOWING_POPUP].includes(session.currentState)) {
     console.warn(`Invalid transition to LEVEL_SELECTION from ${session.currentState}`);
     return;
   }
@@ -351,14 +352,40 @@ function transitionToShowingResult(session: GameSession): void {
   // Broadcast results to all players
   broadcastResults(session);
 
-  // Schedule transition to next turn after 3 seconds
+  // Schedule transition to popup after 3 seconds
   setTimeout(() => {
     if (session.currentState === GameState.SHOWING_RESULT && session.isActive) {
-      transitionToLevelSelection(session);
+      transitionToShowingPopup(session);
     }
   }, 3000);
 
   console.log(`Turn ${session.currentTurn}: Transitioned to SHOWING_RESULT`);
+}
+
+function transitionToShowingPopup(session: GameSession): void {
+  // Guard: Can only transition from SHOWING_RESULT
+  if (session.currentState !== GameState.SHOWING_RESULT) {
+    console.warn(`Invalid transition to SHOWING_POPUP from ${session.currentState}`);
+    return;
+  }
+
+  // Update state
+  session.currentState = GameState.SHOWING_POPUP;
+
+  // Broadcast popup state to all players
+  [...session.teamA, ...session.teamB].forEach(player => {
+    if (player.ws.readyState === WebSocket.OPEN) {
+      player.ws.send(JSON.stringify({
+        type: 'game_state',
+        state: 'SHOWING_POPUP',
+        scoreA: session.scoreA,
+        scoreB: session.scoreB,
+        timestamp: Date.now()
+      }));
+    }
+  });
+
+  console.log(`Turn ${session.currentTurn}: Transitioned to SHOWING_POPUP (waiting for continue signal)`);
 }
 
 function transitionToGameOver(session: GameSession): void {
@@ -845,6 +872,35 @@ wss.on('connection', (ws: WebSocket) => {
             type: 'answer_submitted',
             timestamp: currentTime
           }));
+
+          break;
+        }
+
+        case 'popup_continue': {
+          const { gameCode } = data;
+          const session = gameSessions.get(gameCode);
+
+          if (!session) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Invalid game code',
+            }));
+            return;
+          }
+
+          // Guard: Must be in SHOWING_POPUP state
+          if (session.currentState !== GameState.SHOWING_POPUP) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Not in popup state',
+            }));
+            return;
+          }
+
+          console.log(`Popup continue signal received for game ${gameCode}, starting next turn`);
+
+          // Transition to next turn
+          transitionToLevelSelection(session);
 
           break;
         }

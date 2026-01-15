@@ -41,7 +41,9 @@ function PlayerGame() {
   const [showResult, setShowResult] = useState(false);
   const [answerResult, setAnswerResult] = useState<'correct' | 'incorrect' | 'not_attempted' | null>(null);
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get game code and player info from location state
   const { gameCode, playerName, team } = location.state || {};
@@ -177,6 +179,28 @@ function PlayerGame() {
               if (data.scoreB !== undefined) {
                 setGameState(prev => prev ? { ...prev, scoreB: data.scoreB } : prev);
               }
+            } else if (data.state === 'SHOWING_POPUP') {
+              // Backend says: show popup panel
+              console.log('State: SHOWING_POPUP', data);
+              setShowResult(false);
+              setShowPopup(true);
+
+              // Clear any existing popup timer
+              if (popupTimerRef.current) {
+                clearTimeout(popupTimerRef.current);
+              }
+
+              // Auto-continue after 5 seconds (simulating popup animation/visualization)
+              popupTimerRef.current = setTimeout(() => {
+                console.log('Popup timer expired, sending continue signal');
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(JSON.stringify({
+                    type: 'popup_continue',
+                    gameCode: gameCode
+                  }));
+                }
+                setShowPopup(false);
+              }, 5000);
             } else if (data.state === 'GAME_OVER') {
               // Game over
               alert(`Game Over! Team A: ${data.finalScoreA}, Team B: ${data.finalScoreB}`);
@@ -278,6 +302,9 @@ function PlayerGame() {
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
+      }
+      if (popupTimerRef.current) {
+        clearTimeout(popupTimerRef.current);
       }
     };
   }, [gameCode, playerName, team, navigate]);
@@ -581,6 +608,47 @@ function PlayerGame() {
             </div>
           )}
         </div>
+
+        {/* Popup Panel - Shows between turns */}
+        {showPopup && (
+          <div className="result-popup-overlay" style={{ zIndex: 1000 }}>
+            <div className="result-popup" style={{
+              minHeight: '300px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              animation: 'fadeIn 0.3s ease-in-out'
+            }}>
+              <div className="result-content" style={{ textAlign: 'center' }}>
+                <h2 style={{ fontSize: '2rem', marginBottom: '1rem', color: 'white' }}>
+                  🎮 Get Ready!
+                </h2>
+                <p style={{ fontSize: '1.2rem', color: 'rgba(255,255,255,0.9)', marginBottom: '2rem' }}>
+                  Turn complete! Preparing next round...
+                </p>
+                <div style={{
+                  width: '60px',
+                  height: '60px',
+                  border: '4px solid rgba(255,255,255,0.3)',
+                  borderTop: '4px solid white',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  margin: '0 auto'
+                }}></div>
+                <p style={{
+                  fontSize: '0.9rem',
+                  color: 'rgba(255,255,255,0.7)',
+                  marginTop: '2rem',
+                  fontStyle: 'italic'
+                }}>
+                  This is where your visualization will appear
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
