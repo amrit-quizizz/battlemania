@@ -88,8 +88,14 @@ function SafeModel({ modelPath, scale = 1 }: { modelPath: string, scale?: number
   )
 }
 
+// Collision data interface
+interface BulletHitData {
+  hitTankHandle: number | undefined
+  firingDirection: { x: number; y: number }
+}
+
 // Bullet Component
-function Bullet({ position, velocity, onHit, ownerTankHandle }: { position: [number, number, number], velocity: { x: number, y: number }, onHit?: () => void, ownerTankHandle?: number }) {
+function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }: { position: [number, number, number], velocity: { x: number, y: number }, onHit?: (data: BulletHitData) => void, ownerTankHandle?: number, firingDirection: { x: number; y: number } }) {
   const bulletRef = useRef<RapierRigidBody>(null)
   const [active, setActive] = useState(true)
 
@@ -107,7 +113,7 @@ function Bullet({ position, velocity, onHit, ownerTankHandle }: { position: [num
     // Remove bullet if it goes off screen
     if (Math.abs(pos.x) > 25 || Math.abs(pos.y) > 20) {
       setActive(false)
-      onHit?.()
+      onHit?.({ hitTankHandle: undefined, firingDirection })
     }
   })
 
@@ -126,7 +132,7 @@ function Bullet({ position, velocity, onHit, ownerTankHandle }: { position: [num
           return
         }
         setActive(false)
-        onHit?.()
+        onHit?.({ hitTankHandle: otherHandle, firingDirection })
       }}
     >
       <Suspense fallback={
@@ -150,11 +156,12 @@ function Bullet({ position, velocity, onHit, ownerTankHandle }: { position: [num
 }
 
 // Enhanced Player Tank Component
-function PlayerTank({ player, position }: { player: 'player1' | 'player2', position: [number, number, number] }) {
-  const tankRef = useRef<RapierRigidBody>(null)
+function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }: { player: 'player1' | 'player2', position: [number, number, number], onBulletHit?: (data: BulletHitData) => void, tankRef?: React.RefObject<RapierRigidBody | null> }) {
+  const internalTankRef = useRef<RapierRigidBody>(null)
+  const tankRef = externalTankRef || internalTankRef
   const tankGroupRef = useRef<THREE.Group>(null)
   const keysPressed = useRef<Set<string>>(new Set())
-  const [bullets, setBullets] = useState<Array<{ id: number, position: [number, number, number], velocity: { x: number, y: number }, ownerTankHandle?: number }>>([])
+  const [bullets, setBullets] = useState<Array<{ id: number, position: [number, number, number], velocity: { x: number, y: number }, ownerTankHandle?: number, firingDirection: { x: number; y: number } }>>([])
   const lastFireTime = useRef<number>(0)
   const fireCooldown = 500 // milliseconds between shots
 
@@ -173,6 +180,7 @@ function PlayerTank({ player, position }: { player: 'player1' | 'player2', posit
     const direction = player === 'player1' ? 1 : -1
     const bulletOffset = direction * 1.5 // Increased offset to clear tank collision bounds
     const tankHandle = tankRef.current.handle
+    const firingDirection = { x: direction, y: 0 }
     const newBullet = {
       id: Date.now() + Math.random(), // Ensure unique ID
       position: [
@@ -184,10 +192,11 @@ function PlayerTank({ player, position }: { player: 'player1' | 'player2', posit
         x: direction * 2, // Fire speed - reduced for visibility
         y: 0 
       },
-      ownerTankHandle: tankHandle
+      ownerTankHandle: tankHandle,
+      firingDirection
     }
     setBullets(prev => [...prev, newBullet])
-  }, [player])
+  }, [player, tankRef])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -291,8 +300,10 @@ function PlayerTank({ player, position }: { player: 'player1' | 'player2', posit
           position={bullet.position}
           velocity={bullet.velocity}
           ownerTankHandle={bullet.ownerTankHandle}
-          onHit={() => {
+          firingDirection={bullet.firingDirection}
+          onHit={(hitData) => {
             setBullets(prev => prev.filter(b => b.id !== bullet.id))
+            onBulletHit?.(hitData)
           }}
         />
       ))}
@@ -432,6 +443,77 @@ function CleanBattleScene() {
   // Road position - lowered significantly to eliminate brown space at bottom
   // With camera at y=-2.5 and fov=60, road positioned to fill viewport
   const roadY = -5.8
+  
+  // Refs to store both tank RigidBody references for collision effects
+  const player1TankRef = useRef<RapierRigidBody>(null)
+  const player2TankRef = useRef<RapierRigidBody>(null)
+
+  // Recoil effect: Push shooter tank backward (opposite to firing direction)
+  const applyRecoilEffect = useCallback((tankRef: React.RefObject<RapierRigidBody | null>, firingDirection: { x: number; y: number }) => {
+    if (!tankRef.current) return
+    
+    const recoilForce = 0.8 // Adjustable magnitude
+    // Recoil is in negative direction of bullet (opposite to firing direction)
+    tankRef.current.applyImpulse({
+      x: -firingDirection.x * recoilForce,
+      y: 0,
+      z: 0
+    }, true)
+  }, [])
+
+  // Explosion shake effect: Apply upward impulse and rotation to enemy tank
+  const applyShakeEffect = useCallback((tankRef: React.RefObject<RapierRigidBody | null>) => {
+    if (!tankRef.current) return
+    
+    // Apply upward impulse to lift tank
+    tankRef.current.applyImpulse({
+      x: 0,
+      y: 1.2, // Upward force
+      z: 0
+    }, true)
+
+    // Apply rotation for shake/destabilization effect
+    tankRef.current.applyTorqueImpulse({
+      x: (Math.random() - 0.5) * 0.3, // Random rotation on X axis
+      y: 0,
+      z: (Math.random() - 0.5) * 0.3  // Random rotation on Z axis
+    }, true)
+  }, [])
+
+  // Handle bullet hit: Route collision to appropriate effects
+  const handleBulletHit = useCallback((hitData: BulletHitData, ownerTankHandle?: number) => {
+    if (!hitData.hitTankHandle) return // Bullet went off screen or hit non-tank object
+    
+    // Determine which tank fired (shooter) and which was hit (enemy)
+    const player1Handle = player1TankRef.current?.handle
+    const player2Handle = player2TankRef.current?.handle
+    
+    // Find shooter tank ref
+    let shooterTankRef: React.RefObject<RapierRigidBody | null> | undefined = undefined
+    if (ownerTankHandle === player1Handle) {
+      shooterTankRef = player1TankRef
+    } else if (ownerTankHandle === player2Handle) {
+      shooterTankRef = player2TankRef
+    }
+    
+    // Find enemy tank ref (the one that was hit)
+    let enemyTankRef: React.RefObject<RapierRigidBody | null> | undefined = undefined
+    if (hitData.hitTankHandle === player1Handle) {
+      enemyTankRef = player1TankRef
+    } else if (hitData.hitTankHandle === player2Handle) {
+      enemyTankRef = player2TankRef
+    }
+    
+    // Apply recoil to shooter tank
+    if (shooterTankRef) {
+      applyRecoilEffect(shooterTankRef, hitData.firingDirection)
+    }
+    
+    // Apply shake to enemy tank
+    if (enemyTankRef) {
+      applyShakeEffect(enemyTankRef)
+    }
+  }, [applyRecoilEffect, applyShakeEffect])
 
   return (
     <>
@@ -517,12 +599,22 @@ function CleanBattleScene() {
       <PlayerTank
         player="player1"
         position={[-3, roadY + 2.5, 2.5]}
+        tankRef={player1TankRef}
+        onBulletHit={(hitData) => {
+          const ownerTankHandle = player1TankRef.current?.handle
+          handleBulletHit(hitData, ownerTankHandle)
+        }}
       />
 
       {/* PLAYER 2 TANK - Right side, facing LEFT (towards center) */}
       <PlayerTank
         player="player2"
         position={[3, roadY + 2.5, 2.5]}
+        tankRef={player2TankRef}
+        onBulletHit={(hitData) => {
+          const ownerTankHandle = player2TankRef.current?.handle
+          handleBulletHit(hitData, ownerTankHandle)
+        }}
       />
 
       {/* ENHANCED LIGHTING - More realistic lighting setup */}
