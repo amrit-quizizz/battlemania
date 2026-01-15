@@ -1,0 +1,399 @@
+.start-game-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.start-game-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 3rem;
+  max-width: 1200px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.start-game-title {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.start-game-subtitle {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 2rem;
+}
+
+.start-game-button {
+  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+  color: white;
+  border: none;
+  padding: 1rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(100, 108, 255, 0.4);
+}
+
+.start-game-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(100, 108, 255, 0.6);
+}
+
+.join-link {
+  display: block;
+  margin-top: 1.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: color 0.3s ease;
+}
+
+.join-link:hover {
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: underline;
+}
+
+.start-game-button:active {
+  transform: translateY(0);
+}
+
+.start-game-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.start-game-button:disabled:hover {
+  transform: none;
+  box-shadow: 0 4px 15px rgba(100, 108, 255, 0.4);
+}
+
+.start-game-button.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.start-game-button.secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.game-code-container {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: rgba(100, 108, 255, 0.1);
+  border-radius: 12px;
+  border: 2px solid rgba(100, 108, 255, 0.3);
+}
+
+.game-code {
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: 0.5rem;
+  color: #646cff;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 20px rgba(100, 108, 255, 0.5);
+}
+
+/* Game Lobby Styles */
+.game-lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.game-header {
+  margin-bottom: 1rem;
+}
+
+.teams-container {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 2rem;
+  min-height: 400px;
+  margin: 2rem 0;
+}
+
+.team-section {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  padding: 2rem;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.team-a {
+  border-color: rgba(100, 200, 255, 0.3);
+}
+
+.team-b {
+  border-color: rgba(255, 150, 100, 0.3);
+}
+
+.team-title {
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+}
+
+.team-a .team-title {
+  color: #64c8ff;
+}
+
+.team-b .team-title {
+  color: #ff9664;
+}
+
+.player-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 250px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+}
+
+.player-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.player-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.player-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.player-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.player-item {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  text-align: left;
+  transition: all 0.2s ease;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.player-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateX(4px);
+}
+
+.player-name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.empty-team {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+
+.team-count {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.team-divider {
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  margin: 0 1rem;
+}
+
+.game-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.begin-game {
+  min-width: 200px;
+  padding: 1rem 3rem;
+  font-size: 1.2rem;
+}
+
+.begin-game.disabled {
+  background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+  cursor: not-allowed;
+  opacity: 0.8;
+  box-shadow: 0 4px 15px rgba(255, 68, 68, 0.4);
+}
+
+.begin-game.disabled:hover {
+  transform: none;
+  box-shadow: 0 4px 15px rgba(255, 68, 68, 0.4);
+}
+
+.begin-game.active {
+  background: linear-gradient(135deg, #44ff44 0%, #00cc00 100%);
+  box-shadow: 0 4px 15px rgba(68, 255, 68, 0.4);
+}
+
+.begin-game.active:hover {
+  box-shadow: 0 6px 20px rgba(68, 255, 68, 0.6);
+}
+
+.start-game-hint {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+}
+
+@media (prefers-color-scheme: light) {
+  .start-game-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  .start-game-subtitle {
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .game-code-container {
+    background: rgba(100, 108, 255, 0.05);
+    border: 2px solid rgba(100, 108, 255, 0.2);
+  }
+
+  .start-game-button.secondary {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .start-game-button.secondary:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .team-section {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .team-a {
+    border-color: rgba(100, 200, 255, 0.3);
+  }
+
+  .team-b {
+    border-color: rgba(255, 150, 100, 0.3);
+  }
+
+  .player-list {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .player-item {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .player-item:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  .player-name {
+    color: rgba(0, 0, 0, 0.8);
+  }
+
+  .empty-team {
+    color: rgba(0, 0, 0, 0.4);
+  }
+
+  .team-count {
+    border-top-color: rgba(0, 0, 0, 0.1);
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  .team-divider {
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      rgba(0, 0, 0, 0.2),
+      transparent
+    );
+  }
+
+  .begin-game.disabled {
+    background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+    opacity: 0.8;
+  }
+
+  .start-game-hint {
+    color: rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .teams-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+
+  .team-divider {
+    width: 100%;
+    height: 2px;
+    margin: 1rem 0;
+    background: linear-gradient(
+      to right,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+  }
+
+  .start-game-card {
+    padding: 2rem 1.5rem;
+  }
+
+  .game-code {
+    font-size: 2rem;
+    letter-spacing: 0.3rem;
+  }
+}
