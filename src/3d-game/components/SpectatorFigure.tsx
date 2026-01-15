@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { RigidBody, RapierRigidBody, CuboidCollider } from '@react-three/rapier'
 import { RoundedBox } from '@react-three/drei'
 import { spectatorConfig } from '../config/gameConfig'
+import useGameStore from '../store/gameStore'
 import * as THREE from 'three'
 
 interface SpectatorFigureProps {
@@ -14,6 +15,8 @@ interface SpectatorFigureProps {
   scale?: number
   /** Random offset for animation timing (0-1) */
   cheerOffset?: number
+  /** Team this spectator supports - cheers when opposing team gets hit */
+  team?: 'teamA' | 'teamB'
 }
 
 /**
@@ -24,14 +27,20 @@ export function SpectatorFigure({
   position,
   rotation = [0, 0, 0],
   scale = 1,
-  cheerOffset = 0
+  cheerOffset = 0,
+  team = 'teamA'
 }: SpectatorFigureProps) {
   const config = spectatorConfig
   const leftArmRef = useRef<THREE.Group>(null)
   const rightArmRef = useRef<THREE.Group>(null)
+  const bodyGroupRef = useRef<THREE.Group>(null) // Ref for jumping animation
   const rigidBodyRef = useRef<RapierRigidBody>(null)
   const positionLogCounter = useRef(0)
   const collisionCount = useRef(0)
+  
+  // Subscribe to damage history from game store
+  const damageHistory = useGameStore((state) => state.damageHistory)
+  const lastProcessedDamageIndex = useRef(-1)
 
   // #region agent log
   fetch('http://127.0.0.1:7245/ingest/afe67715-8fe3-4e25-ba74-9e370898c825',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SpectatorFigure.tsx:27',message:'SpectatorFigure created',data:{position,rotation,scale,physics:{mass:config.physics.mass,friction:config.physics.friction,restitution:config.physics.restitution,linearDamping:config.physics.linearDamping,angularDamping:config.physics.angularDamping},colliderType:'CuboidCollider',lockRotations:[true,false,true]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -44,6 +53,33 @@ export function SpectatorFigure({
     cheerProgress: 0,
     idleVariation: cheerOffset * Math.PI * 2 // Use offset for variation
   })
+  
+  // Trigger cheering when opposing team gets hit
+  useEffect(() => {
+    // Check for new damage events
+    if (damageHistory.length > 0 && damageHistory.length - 1 > lastProcessedDamageIndex.current) {
+      // Process only new damage events
+      for (let i = lastProcessedDamageIndex.current + 1; i < damageHistory.length; i++) {
+        const damageEvent = damageHistory[i]
+        // Determine which team the hit player belongs to
+        // player1 is teamA, player2 is teamB
+        const hitPlayerTeam = damageEvent.playerId === 'player1' ? 'teamA' : 'teamB'
+        
+        // If the hit player is on the OPPOSING team, this spectator cheers!
+        // TeamA spectators cheer when teamB (player2) gets hit
+        // TeamB spectators cheer when teamA (player1) gets hit
+        if (hitPlayerTeam !== team) {
+          // Trigger cheer with small random delay for natural feel
+          const delay = Math.random() * 200 // 0-200ms delay
+          setTimeout(() => {
+            animationState.current.isCheering = true
+            animationState.current.cheerProgress = 0
+          }, delay)
+        }
+      }
+      lastProcessedDamageIndex.current = damageHistory.length - 1
+    }
+  }, [damageHistory, team])
 
   // Log position updates and enforce rotation/translation locks
   useFrame(() => {
@@ -87,12 +123,14 @@ export function SpectatorFigure({
   })
 
   // Memoize materials to avoid recreating on each render
+  // Use team-based colors: teamA = red, teamB = blue
+  const teamColor = team === 'teamA' ? config.appearance.teamAColor : config.appearance.teamBColor
   const bodyMaterial = useMemo(() => 
     new THREE.MeshStandardMaterial({ 
-      color: config.appearance.color,
+      color: teamColor,
       roughness: 0.8,
       metalness: 0.1
-    }), []
+    }), [teamColor]
   )
 
   const eyeMaterial = useMemo(() => 
@@ -105,10 +143,16 @@ export function SpectatorFigure({
   useFrame((state, delta) => {
     const time = state.clock.elapsedTime + cheerOffset * 10 // Offset timing
     
-    // Check if we should start cheering (occasional bursts)
+    // Check if cheering was triggered (from damage event) and needs start time set
+    if (animationState.current.isCheering && animationState.current.cheerStartTime === 0) {
+      animationState.current.cheerStartTime = time
+    }
+    
+    // Very rare random ambient cheering (reduced frequency since we have damage-based cheering)
     if (!animationState.current.isCheering) {
       const random = Math.random()
-      if (random < config.animation.cheeringFrequency * 60 * delta) {
+      // Much lower frequency for random ambient cheering
+      if (random < config.animation.cheeringFrequency * 20 * delta) {
         animationState.current.isCheering = true
         animationState.current.cheerStartTime = time
         animationState.current.cheerProgress = 0
@@ -123,11 +167,12 @@ export function SpectatorFigure({
       // End cheering after duration
       if (elapsed >= config.animation.cheeringDuration) {
         animationState.current.isCheering = false
+        animationState.current.cheerStartTime = 0 // Reset start time for next cheer
         animationState.current.cheerProgress = 0
       }
     }
 
-    // Animate arms
+    // Animate arms and jumping
     if (leftArmRef.current && rightArmRef.current) {
       if (animationState.current.isCheering) {
         // Cheering: raise arms up
@@ -144,11 +189,28 @@ export function SpectatorFigure({
         )
         leftArmRef.current.rotation.x = rotation
         rightArmRef.current.rotation.x = rotation
+        
+        // Jumping effect: bounce up and down multiple times during cheer
+        if (bodyGroupRef.current) {
+          // Create multiple bounces during the cheer duration
+          // Use sine wave with higher frequency for bouncing effect
+          const bounceFrequency = config.animation.jumpBounces
+          const bounceHeight = config.animation.jumpHeight
+          // Fade out the bounce towards the end of cheering
+          const fadeOut = 1 - Math.pow(progress, 2)
+          const jumpOffset = Math.abs(Math.sin(progress * Math.PI * bounceFrequency)) * bounceHeight * fadeOut
+          bodyGroupRef.current.position.y = jumpOffset
+        }
       } else {
         // Idle: arms hang down with slight variation
         const variation = Math.sin(time * 0.5 + animationState.current.idleVariation) * config.animation.idleVariation
         leftArmRef.current.rotation.x = config.animation.idleArmRotation + variation
         rightArmRef.current.rotation.x = config.animation.idleArmRotation + variation * 0.8
+        
+        // Reset jump position when not cheering
+        if (bodyGroupRef.current) {
+          bodyGroupRef.current.position.y = 0
+        }
       }
     }
   })
@@ -190,7 +252,7 @@ export function SpectatorFigure({
     >
       {/* Explicit cuboid collider matching body dimensions */}
       <CuboidCollider args={colliderHalfExtents} />
-      <group scale={scale}>
+      <group ref={bodyGroupRef} scale={scale}>
       {/* Body mesh */}
       <RoundedBox
         position={[0, 0, 0]}

@@ -35,6 +35,7 @@ export function Spectators({
       rotation: [number, number, number]
       scale: number
       cheerOffset: number
+      team: 'teamA' | 'teamB'
     }> = []
 
     const { stairLevels } = config.stairs
@@ -84,7 +85,8 @@ export function Spectators({
             position: [worldX, worldY, worldZ],
             rotation: [0, 0, 0], // Always face +z direction
             scale: 1,
-            cheerOffset: Math.random()
+            cheerOffset: Math.random(),
+            team: Math.random() < 0.5 ? 'teamA' : 'teamB' // Randomly assign to red or blue team
           })
         }
       }
@@ -108,7 +110,8 @@ export function Spectators({
           position: [worldX, worldY, worldZ],
           rotation: [0, 0, 0], // Always face +z direction
           scale: 0.8 + Math.random() * 0.4, // Slight size variation
-          cheerOffset: Math.random()
+          cheerOffset: Math.random(),
+          team: Math.random() < 0.5 ? 'teamA' : 'teamB' // Randomly assign to red or blue team
         })
       }
     }
@@ -125,6 +128,7 @@ export function Spectators({
           rotation={spec.rotation}
           scale={spec.scale}
           cheerOffset={spec.cheerOffset}
+          team={spec.team}
         />
       ))}
     </>

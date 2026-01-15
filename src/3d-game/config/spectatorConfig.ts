@@ -12,6 +12,10 @@ export interface SpectatorConfig {
     color: string
     /** Eye color */
     eyeColor: string
+    /** Team A color (red team - supports player1) */
+    teamAColor: string
+    /** Team B color (blue team - supports player2) */
+    teamBColor: string
     /** Head size (radius) */
     headSize: number
     /** Body dimensions [width, height, depth] */
@@ -44,6 +48,10 @@ export interface SpectatorConfig {
     cheeringDuration: number
     /** Idle variation amplitude (slight random movement) */
     idleVariation: number
+    /** Jump/bounce height during cheering */
+    jumpHeight: number
+    /** Number of bounces during a cheer */
+    jumpBounces: number
   }
   
   /** Positioning settings */
@@ -93,11 +101,13 @@ export const spectatorConfig: SpectatorConfig = {
   appearance: {
     color: '#ffffff',
     eyeColor: '#000000',
-    headSize: 0.15,
+    teamAColor: '#ef476f', // Red team - supports player1
+    teamBColor: '#90e0ef', // Blue team - supports player2
+    headSize: 0.17,
     bodySize: [0.12, 0.18, 0.08],
     armLength: 0.12,
     armThickness: 0.03,
-    legLength: 0.14,
+    legLength: 0.2,
     legThickness: 0.04,
     eyeSize: 0.02,
     eyeOffset: [0.04, 0.03, 0.13]
@@ -106,9 +116,11 @@ export const spectatorConfig: SpectatorConfig = {
     cheeringSpeed: 3.0,
     cheeringAmplitude: [-Math.PI / 3, Math.PI / 2],
     idleArmRotation: -0.2,
-    cheeringFrequency: 0.002, // Low probability for occasional cheering
+    cheeringFrequency: 0.005, // Low probability for occasional cheering
     cheeringDuration: 1.5,
-    idleVariation: 0.05
+    idleVariation: 0.05,
+    jumpHeight: 0.15, // Max jump height during cheering
+    jumpBounces: 4 // Number of bounces during a cheer
   },
   positioning: {
     count: 32,
