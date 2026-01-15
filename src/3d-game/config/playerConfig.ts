@@ -67,6 +67,27 @@ export interface PlayerConfig {
     /** Label size */
     label: [number, number, number]
   }
+  
+  /** Tank fallback configuration */
+  tankFallback: {
+    /** Fallback box geometry [width, height, depth] */
+    geometry: [number, number, number]
+    /** Player 1 fallback color */
+    player1Color: string
+    /** Player 2 fallback color */
+    player2Color: string
+  }
+  
+  /** Player label configuration */
+  playerLabel: {
+    /** Position offset [x, y, z] */
+    position: [number, number, number]
+    /** Label color */
+    color: string
+  }
+  
+  /** Bullet rotation when firing [x, y, z] in radians */
+  bulletRotation: [number, number, number]
 }
 
 /**
@@ -97,5 +118,15 @@ export const playerConfig: PlayerConfig = {
     standard: [2, 0.3, 0.3],
     small: [1.5, 0.2, 0.2],
     label: [1.2, 0.4, 0.1]
-  }
+  },
+  tankFallback: {
+    geometry: [3, 1.5, 4],
+    player1Color: '#4a6fa5',
+    player2Color: '#a54a4a'
+  },
+  playerLabel: {
+    position: [0, 3.2, 0],
+    color: '#ffffff'
+  },
+  bulletRotation: [0, -Math.PI / 2, 0]
 }

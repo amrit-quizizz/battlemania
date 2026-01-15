@@ -69,6 +69,21 @@ export interface UIConfig {
     /** Container background color */
     container: string
   }
+  
+  /** 3D ScoreCard configuration */
+  scoreCard3D: {
+    /** Player 1 scorecard position [x, y, z] */
+    player1Position: [number, number, number]
+    /** Player 2 scorecard position [x, y, z] */
+    player2Position: [number, number, number]
+    /** Scorecard scale */
+    scale: number
+    /** Team names */
+    teamNames: {
+      player1: string
+      player2: string
+    }
+  }
 }
 
 /**
@@ -110,5 +125,14 @@ export const uiConfig: UIConfig = {
   background: {
     main: '#2a2a2a',
     container: '#87CEEB'
+  },
+  scoreCard3D: {
+    player1Position: [-6, 3, 2],
+    player2Position: [6, 3, 2],
+    scale: 0.5,
+    teamNames: {
+      player1: 'TEAM A',
+      player2: 'TEAM B'
+    }
   }
 }

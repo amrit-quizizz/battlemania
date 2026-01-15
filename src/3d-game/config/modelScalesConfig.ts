@@ -114,6 +114,12 @@ export interface ModelScalesConfig {
     /** Large tree scale */
     large: number
   }
+  
+  /** Billboard model scale */
+  billboard: number
+  
+  /** Tank model multiplier for battle scene */
+  tankBattleMultiplier: number
 }
 
 /**
@@ -144,8 +150,8 @@ export const modelScalesConfig: ModelScalesConfig = {
     pathStraight: [40, 8, 5]
   },
   buildings: {
-    skyscraper: 2.0,
-    largeBuilding: 1.5,
+    skyscraper: 2.5,
+    largeBuilding: 2.5,
     castle: 1.8,
     barracks: 1.2,
     fortress: 1.5,
@@ -179,5 +185,7 @@ export const modelScalesConfig: ModelScalesConfig = {
   tree: {
     standard: 0.4,
     large: 1.5
-  }
+  },
+  billboard: 0.5,
+  tankBattleMultiplier: 2.4
 }

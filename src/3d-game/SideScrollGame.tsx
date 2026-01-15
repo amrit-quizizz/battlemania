@@ -2,9 +2,9 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { Suspense, useEffect } from 'react'
 import { Physics } from '@react-three/rapier'
 import { PerspectiveCamera } from '@react-three/drei'
-import { cameraConfig, environmentConfig, physicsConfig } from './config/gameConfig'
+import { cameraConfig, environmentConfig, physicsConfig, uiConfig, playerConfig } from './config/gameConfig'
 import { HealthBarOverlay } from './components/HealthBarOverlay'
-import { ScoreCard } from './components/ScoreCard'
+import { ScoreCard3D } from './components/ScoreCard3D'
 import { resetHealth, registerHealthChangeListener } from './utils/healthDamageSystem'
 import * as THREE from 'three'
 import CleanBattleScene from './components/CleanBattleScene'
@@ -13,7 +13,7 @@ import CleanBattleScene from './components/CleanBattleScene'
 function SceneBackground() {
   const { scene } = useThree()
   useEffect(() => {
-    scene.background = new THREE.Color('#87CEEB')
+    scene.background = new THREE.Color(environmentConfig.sky.primaryColor)
   }, [scene])
   return null
 }
@@ -66,14 +66,26 @@ function SideScrollGame() {
             <CleanBattleScene />
           </Suspense>
         </Physics>
+
+        {/* 3D Score Cards - Hovering in view */}
+        <ScoreCard3D 
+          position={uiConfig.scoreCard3D.player1Position} 
+          player="player1" 
+          playerName={uiConfig.scoreCard3D.teamNames.player1} 
+          teamColor={playerConfig.player1Color}
+          scale={uiConfig.scoreCard3D.scale}
+        />
+        <ScoreCard3D 
+          position={uiConfig.scoreCard3D.player2Position} 
+          player="player2" 
+          playerName={uiConfig.scoreCard3D.teamNames.player2} 
+          teamColor={playerConfig.player2Color}
+          scale={uiConfig.scoreCard3D.scale}
+        />
       </Canvas>
 
       {/* Damage Numbers Overlay */}
       <HealthBarOverlay />
-
-      {/* Score Cards - Left and Right */}
-      <ScoreCard side="left" player="player1" teamName="TEAM A" teamColor="#0066ff" />
-      <ScoreCard side="right" player="player2" teamName="TEAM B" teamColor="#ff0066" />
     </div>
   )
 }

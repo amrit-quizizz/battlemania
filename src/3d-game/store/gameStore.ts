@@ -11,6 +11,7 @@ interface Player {
   position: Position
   rotation: number
   health: number
+  score: number
   team: 'teamA' | 'teamB'
 }
 
@@ -43,6 +44,9 @@ interface GameState {
   applyDamageToPlayer: (player: 'player1' | 'player2', damage: number, sourcePlayer: 'player1' | 'player2') => void
   getTeamHealth: (team: 'teamA' | 'teamB') => number
   resetHealth: () => void
+  addScore: (player: 'player1' | 'player2', points: number) => void
+  setScore: (player: 'player1' | 'player2', score: number) => void
+  resetScores: () => void
 }
 
 const useGameStore = create<GameState>((set, get) => ({
@@ -50,12 +54,14 @@ const useGameStore = create<GameState>((set, get) => ({
     position: { ...playerConfig.player1StartPosition },
     rotation: playerConfig.player1StartRotation,
     health: playerConfig.initialHealth,
+    score: 0,
     team: 'teamA'
   },
   player2: {
     position: { ...playerConfig.player2StartPosition },
     rotation: playerConfig.player2StartRotation,
     health: playerConfig.initialHealth,
+    score: 0,
     team: 'teamB'
   },
   bullets: [],
@@ -160,6 +166,37 @@ const useGameStore = create<GameState>((set, get) => ({
       },
       damageDealt: { teamA: 0, teamB: 0 },
       damageHistory: []
+    }))
+  },
+
+  addScore: (player, points) => {
+    set((state) => ({
+      [player]: {
+        ...state[player],
+        score: state[player].score + points
+      }
+    }))
+  },
+
+  setScore: (player, score) => {
+    set((state) => ({
+      [player]: {
+        ...state[player],
+        score
+      }
+    }))
+  },
+
+  resetScores: () => {
+    set((state) => ({
+      player1: {
+        ...state.player1,
+        score: 0
+      },
+      player2: {
+        ...state.player2,
+        score: 0
+      }
     }))
   }
 }))

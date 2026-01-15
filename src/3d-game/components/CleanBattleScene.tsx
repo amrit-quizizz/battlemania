@@ -37,7 +37,8 @@ const MODELS = {
   barracks: '/models/buildings/Barracks.glb',
   fortress: '/models/buildings/Fortress.glb',
   bullet: '/src/3d-game/assets/3d models/weapons/Bullet.glb',
-  stadiumSeats: '/src/3d-game/assets/3d models/environment/Stadium Seats.glb'
+  stadiumSeats: '/src/3d-game/assets/3d models/environment/Stadium Seats.glb',
+  billboard: '/src/3d-game/assets/3d models/environment/Billboard.glb'
 }
 
 // Preload models
@@ -67,7 +68,8 @@ const SCALES = {
   barracks: modelScalesConfig.buildings.barracks,
   fortress: modelScalesConfig.buildings.fortress,
   bullet: modelScalesConfig.bullet.standard,
-  stadiumSeats: modelScalesConfig.buildings.stadiumSeats
+  stadiumSeats: modelScalesConfig.buildings.stadiumSeats,
+  billboard: modelScalesConfig.billboard
 }
 
 // Safe model loader with better error handling
@@ -162,7 +164,7 @@ function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }:
           />
         </mesh>
       }>
-        <group rotation={[0, -Math.PI / 2, 0]}>
+        <group rotation={playerConfig.bulletRotation}>
           <SafeModel modelPath={MODELS.bullet} scale={SCALES.bullet} />
         </group>
       </Suspense>
@@ -279,11 +281,11 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
         <group ref={tankGroupRef} scale={SCALES.tank} rotation={[0, facing, 0]}>
           <Suspense fallback={
             <mesh castShadow receiveShadow>
-              <boxGeometry args={[3, 1.5, 4]} />
-              <meshStandardMaterial color={player === 'player1' ? '#4a6fa5' : '#a54a4a'} />
+              <boxGeometry args={playerConfig.tankFallback.geometry} />
+              <meshStandardMaterial color={player === 'player1' ? playerConfig.tankFallback.player1Color : playerConfig.tankFallback.player2Color} />
             </mesh>
           }>
-            <SafeModel modelPath={MODELS.tank} scale={modelScalesConfig.tank.large * 2.4} />
+            <SafeModel modelPath={MODELS.tank} scale={modelScalesConfig.tank.large * modelScalesConfig.tankBattleMultiplier} />
           </Suspense>
 
           {/* Team indicator bar - more visible */}
@@ -297,10 +299,10 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
           </mesh>
 
           {/* Player label */}
-          <mesh position={[0, 3.2, 0]}>
+          <mesh position={playerConfig.playerLabel.position}>
             <boxGeometry args={playerConfig.teamIndicatorGeometries.label} />
             <meshStandardMaterial
-              color="#ffffff"
+              color={playerConfig.playerLabel.color}
               emissive={player === 'player1' ? playerConfig.player1Color : playerConfig.player2Color}
               emissiveIntensity={visualEffectsConfig.emissive.low}
             />
@@ -351,7 +353,7 @@ function Road({ roadY }: { roadY: number }) {
           >
             <Suspense fallback={
               <mesh receiveShadow castShadow>
-                <boxGeometry args={[3.5, 2, 10]} />
+                <boxGeometry args={environmentConfig.fallbacks.roadSegment} />
                 <meshStandardMaterial color={environmentConfig.sky.primaryColor} />
               </mesh>
             }>
@@ -393,8 +395,8 @@ function Clouds() {
       <group ref={cloud2Ref} position={animationConfig.clouds.positions.cloud1}>
         <Suspense fallback={
           <mesh>
-            <sphereGeometry args={[2, 16, 16]} />
-            <meshBasicMaterial color="#ffffff" opacity={0.7} transparent />
+            <sphereGeometry args={[environmentConfig.fallbacks.cloud.radius, environmentConfig.fallbacks.cloud.segments, environmentConfig.fallbacks.cloud.segments]} />
+            <meshBasicMaterial color={environmentConfig.fallbacks.cloud.color} opacity={environmentConfig.fallbacks.cloud.opacity} transparent />
           </mesh>
         }>
           <SafeModel modelPath={MODELS.clouds} scale={SCALES.clouds} />
@@ -406,8 +408,8 @@ function Clouds() {
       <group ref={cloud5Ref} position={animationConfig.clouds.positions.cloud2}>
         <Suspense fallback={
           <mesh>
-            <sphereGeometry args={[1.4, 16, 16]} />
-            <meshBasicMaterial color="#ffffff" opacity={1} transparent />
+            <sphereGeometry args={[environmentConfig.fallbacks.cloudSmall.radius, environmentConfig.fallbacks.cloudSmall.segments, environmentConfig.fallbacks.cloudSmall.segments]} />
+            <meshBasicMaterial color={environmentConfig.fallbacks.cloudSmall.color} opacity={environmentConfig.fallbacks.cloudSmall.opacity} transparent />
           </mesh>
         }>
           <SafeModel modelPath={MODELS.clouds} scale={SCALES.clouds * modelScalesConfig.cloud.medium} />
@@ -419,17 +421,19 @@ function Clouds() {
 
 // Background Buildings Component - Adds buildings to create urban skyline
 function BackgroundBuildings({ roadY }: { roadY: number }) {
+  const { scenePositions } = environmentConfig
+  
   return (
     <>
       {/* Buildings positioned in background (behind clouds, in front of sky) */}
       {/* Left side buildings */}
-      <group position={[-7, roadY + 1, 1]}>
+      <group position={[scenePositions.buildings.skyscraperLeft.offset[0], roadY + scenePositions.buildings.skyscraperLeft.offset[1], scenePositions.buildings.skyscraperLeft.offset[2]]}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.skyscraper} scale={SCALES.skyscraper} />
         </Suspense>
       </group>
 
-      <group position={[-5, roadY + 0.8, 1]}>
+      <group position={[scenePositions.buildings.largeBuildingLeft.offset[0], roadY + scenePositions.buildings.largeBuildingLeft.offset[1], scenePositions.buildings.largeBuildingLeft.offset[2]]}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.largeBuilding} scale={SCALES.largeBuilding} />
         </Suspense>
@@ -437,22 +441,29 @@ function BackgroundBuildings({ roadY }: { roadY: number }) {
 
       {/* Stadium with Spectators */}
       <StadiumWithSpectators
-        position={[-1, roadY + 1, -2]}
-        rotation={[0, Math.PI, 0]}
+        position={[scenePositions.stadium.offset[0], roadY + scenePositions.stadium.offset[1], scenePositions.stadium.offset[2]]}
+        rotation={scenePositions.stadium.rotation}
         scale={SCALES.stadiumSeats}
-        dimensions={[2.0, 0.6, 1.5]}
+        dimensions={scenePositions.stadium.dimensions}
         roadY={roadY}
       />
 
+      {/* Billboard - Behind spectators for logo display */}
+      <group position={[scenePositions.billboard.offset[0], roadY + scenePositions.billboard.offset[1], scenePositions.billboard.offset[2]]} rotation={scenePositions.billboard.rotation}>
+        <Suspense fallback={null}>
+          <SafeModel modelPath={MODELS.billboard} scale={SCALES.billboard} />
+        </Suspense>
+      </group>
+
       {/* Right side buildings */}
 
-      <group position={[3, roadY + 1, 1]}>
+      <group position={[scenePositions.buildings.largeBuildingRight.offset[0], roadY + scenePositions.buildings.largeBuildingRight.offset[1], scenePositions.buildings.largeBuildingRight.offset[2]]}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.largeBuilding} scale={SCALES.largeBuilding} />
         </Suspense>
       </group>
 
-      <group position={[6, roadY + 0.8, 1]}>
+      <group position={[scenePositions.buildings.skyscraperRight.offset[0], roadY + scenePositions.buildings.skyscraperRight.offset[1], scenePositions.buildings.skyscraperRight.offset[2]]}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.skyscraper} scale={SCALES.skyscraper} />
         </Suspense>
@@ -587,10 +598,10 @@ function CleanBattleScene() {
       </mesh>
 
       {/* SUN - Positioned prominently in background with enhanced visibility */}
-      <group position={[7, 3.5, -8]}>
+      <group position={environmentConfig.scenePositions.sun.position}>
         <Suspense fallback={
           <mesh>
-            <sphereGeometry args={[0.8]} />
+            <sphereGeometry args={[environmentConfig.scenePositions.sun.fallbackRadius]} />
             <meshBasicMaterial color={visualEffectsConfig.sunGlow.innerColor} />
           </mesh>
         }>
@@ -619,15 +630,15 @@ function CleanBattleScene() {
       <Road roadY={roadY} />
 
       {/* MILITARY EQUIPMENT - Turret gun, tent, Humvee, truck */}
-      {/* Turret Gun 1 - Right side behind road, rotated to face battlefield */}
-      <group position={[-2, roadY + 0.5, -5]} rotation={[0, Math.PI/2, 0]}>
+      {/* Turret Gun 1 - Behind road, rotated to face battlefield */}
+      <group position={[environmentConfig.scenePositions.turrets.turret1.offset[0], roadY + environmentConfig.scenePositions.turrets.turret1.offset[1], environmentConfig.scenePositions.turrets.turret1.offset[2]]} rotation={environmentConfig.scenePositions.turrets.turret1.rotation}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.turretGun} scale={SCALES.turretGun} />
         </Suspense>
       </group>
       
-      {/* Turret Gun 2 - Right side behind road, rotated to face battlefield */}
-      <group position={[2, roadY + 0.5, 5]} rotation={[0, -Math.PI/2, 0]}>
+      {/* Turret Gun 2 - Behind road, rotated to face battlefield */}
+      <group position={[environmentConfig.scenePositions.turrets.turret2.offset[0], roadY + environmentConfig.scenePositions.turrets.turret2.offset[1], environmentConfig.scenePositions.turrets.turret2.offset[2]]} rotation={environmentConfig.scenePositions.turrets.turret2.rotation}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.turretGun} scale={SCALES.turretGun} />
         </Suspense>
@@ -636,7 +647,7 @@ function CleanBattleScene() {
       {/* PLAYER 1 TANK - Left side, facing RIGHT (towards center) */}
       <PlayerTank
         player="player1"
-        position={[-4.5, roadY + 2.5, 2.5]}
+        position={[environmentConfig.scenePositions.tanks.player1.offset[0], roadY + environmentConfig.scenePositions.tanks.player1.offset[1], environmentConfig.scenePositions.tanks.player1.offset[2]]}
         tankRef={player1TankRef}
         onBulletHit={(hitData) => {
           const ownerTankHandle = player1TankRef.current?.handle
@@ -650,7 +661,7 @@ function CleanBattleScene() {
       {/* PLAYER 2 TANK - Right side, facing LEFT (towards center) */}
       <PlayerTank
         player="player2"
-        position={[4.5, roadY + 2.5, 2.5]}
+        position={[environmentConfig.scenePositions.tanks.player2.offset[0], roadY + environmentConfig.scenePositions.tanks.player2.offset[1], environmentConfig.scenePositions.tanks.player2.offset[2]]}
         tankRef={player2TankRef}
         onBulletHit={(hitData) => {
           const ownerTankHandle = player2TankRef.current?.handle

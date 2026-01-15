@@ -122,6 +122,63 @@ export interface EnvironmentConfig {
     /** Wall color */
     color: string
   }
+  
+  /** Scene element positions */
+  scenePositions: {
+    /** Sun position and fallback */
+    sun: {
+      position: [number, number, number]
+      fallbackRadius: number
+    }
+    /** Building positions relative to roadY */
+    buildings: {
+      skyscraperLeft: { offset: [number, number, number] }
+      largeBuildingLeft: { offset: [number, number, number] }
+      largeBuildingRight: { offset: [number, number, number] }
+      skyscraperRight: { offset: [number, number, number] }
+    }
+    /** Stadium configuration */
+    stadium: {
+      offset: [number, number, number]
+      rotation: [number, number, number]
+      dimensions: [number, number, number]
+    }
+    /** Billboard position relative to roadY */
+    billboard: {
+      offset: [number, number, number]
+      rotation: [number, number, number]
+    }
+    /** Turret positions relative to roadY */
+    turrets: {
+      turret1: { offset: [number, number, number]; rotation: [number, number, number] }
+      turret2: { offset: [number, number, number]; rotation: [number, number, number] }
+    }
+    /** Tank spawn positions relative to roadY */
+    tanks: {
+      player1: { offset: [number, number, number] }
+      player2: { offset: [number, number, number] }
+    }
+  }
+  
+  /** Fallback geometries for loading states */
+  fallbacks: {
+    /** Road segment fallback [width, height, depth] */
+    roadSegment: [number, number, number]
+    /** Cloud fallback */
+    cloud: {
+      radius: number
+      segments: number
+      color: string
+      opacity: number
+    }
+    /** Cloud small fallback */
+    cloudSmall: {
+      radius: number
+      segments: number
+      color: string
+      opacity: number
+    }
+  }
 }
 
 /**
@@ -199,5 +256,49 @@ export const environmentConfig: EnvironmentConfig = {
     wallWidth: 62,
     wallDepth: 62,
     color: '#505050'
+  },
+  scenePositions: {
+    sun: {
+      position: [7, 3.5, -8],
+      fallbackRadius: 0.8
+    },
+    buildings: {
+      skyscraperLeft: { offset: [-7.5, 1, -1] },
+      largeBuildingLeft: { offset: [-4, 0.8, -2] },
+      largeBuildingRight: { offset: [3.9, 1, -2] },
+      skyscraperRight: { offset: [8, 0.8, -1] }
+    },
+    stadium: {
+      offset: [0, 2, 0],
+      rotation: [0, Math.PI, 0],
+      dimensions: [2.0, 0.6, 1.5]
+    },
+    billboard: {
+      offset: [-0.2, 0.5, -5],
+      rotation: [0, 0, 0]
+    },
+    turrets: {
+      turret1: { offset: [-2, 0.5, -4], rotation: [0, Math.PI / 2, 0] },
+      turret2: { offset: [2, 0.5, 6], rotation: [0, -Math.PI / 2, 0] }
+    },
+    tanks: {
+      player1: { offset: [-4.5, 2.5, 2.5] },
+      player2: { offset: [4.5, 2.5, 2.5] }
+    }
+  },
+  fallbacks: {
+    roadSegment: [3.5, 2, 10],
+    cloud: {
+      radius: 2,
+      segments: 16,
+      color: '#ffffff',
+      opacity: 0.7
+    },
+    cloudSmall: {
+      radius: 1.4,
+      segments: 16,
+      color: '#ffffff',
+      opacity: 1
+    }
   }
 }
