@@ -17,6 +17,7 @@ import { animationConfig, type AnimationConfig } from './animationConfig'
 import { visualEffectsConfig, type VisualEffectsConfig } from './visualEffectsConfig'
 import { spectatorConfig, type SpectatorConfig } from './spectatorConfig'
 import { damageConfig, type DamageConfig } from './damageConfig'
+import { audioConfig, type AudioConfig } from './audioConfig'
 
 /**
  * Complete game configuration interface
@@ -34,6 +35,7 @@ export interface GameConfig {
   visualEffects: VisualEffectsConfig
   spectator: SpectatorConfig
   damage: DamageConfig
+  audio: AudioConfig
 }
 
 /**
@@ -69,7 +71,8 @@ export const gameConfig: GameConfig = {
   animation: animationConfig,
   visualEffects: visualEffectsConfig,
   spectator: spectatorConfig,
-  damage: damageConfig
+  damage: damageConfig,
+  audio: audioConfig
 }
 
 /**
@@ -108,7 +111,8 @@ export {
   animationConfig,
   visualEffectsConfig,
   spectatorConfig,
-  damageConfig
+  damageConfig,
+  audioConfig
 }
 
 // Export types
@@ -124,5 +128,6 @@ export type {
   AnimationConfig,
   VisualEffectsConfig,
   SpectatorConfig,
-  DamageConfig
+  DamageConfig,
+  AudioConfig
 }

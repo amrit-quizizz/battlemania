@@ -21,6 +21,7 @@ interface Bullet {
   direction: Position
   owner: 'player1' | 'player2'
   speed: number
+  type: 'tank' | 'turret'
 }
 
 interface DamageHistoryEntry {

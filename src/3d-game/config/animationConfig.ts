@@ -68,16 +68,16 @@ export interface AnimationConfig {
  */
 export const animationConfig: AnimationConfig = {
   clouds: {
-    cloud1Speed: 0.025,
+    cloud1Speed: 0.3,
     cloud1AmplitudeX: 2.5,
     cloud1YBase: 2.8,
-    cloud1YSpeed: 0.04,
+    cloud1YSpeed: 0.1,
     cloud1AmplitudeY: 0.15,
-    cloud2Speed: 0.028,
+    cloud2Speed: 0.3,
     cloud2AmplitudeX: 1.8,
     cloud2XOffset: 7,
     cloud2YBase: 2.4,
-    cloud2YSpeed: 0.05,
+    cloud2YSpeed: 0.1,
     cloud2AmplitudeY: 0.15,
     positions: {
       cloud1: [-2, 5, -3],

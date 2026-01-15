@@ -15,6 +15,14 @@ import {
 import { StadiumWithSpectators } from './StadiumWithSpectators'
 import { HealthBar3D } from './HealthBar3D'
 import { triggerDamage, DamageType } from '../utils/healthDamageSystem'
+import {
+  playTankFireSound,
+  playTurretFireSound,
+  playHitSound,
+  startAmbientSound,
+  stopAmbientSound,
+  preloadAllSounds
+} from '../utils/soundManager'
 import * as THREE from 'three'
 
 // Model paths - using models from public/models
@@ -37,6 +45,7 @@ const MODELS = {
   barracks: '/models/buildings/Barracks.glb',
   fortress: '/models/buildings/Fortress.glb',
   bullet: '/src/3d-game/assets/3d models/weapons/Bullet.glb',
+  missile: '/src/3d-game/assets/3d models/weapons/Missile.glb',
   stadiumSeats: '/src/3d-game/assets/3d models/environment/Stadium Seats.glb',
   billboard: '/src/3d-game/assets/3d models/environment/Billboard.glb'
 }
@@ -109,10 +118,11 @@ function SafeModel({ modelPath, scale = 1 }: { modelPath: string, scale?: number
 interface BulletHitData {
   hitTankHandle: number | undefined
   firingDirection: { x: number; y: number }
+  bulletType: 'tank' | 'turret'
 }
 
 // Bullet Component
-function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }: { position: [number, number, number], velocity: { x: number, y: number }, onHit?: (data: BulletHitData) => void, ownerTankHandle?: number, firingDirection: { x: number; y: number } }) {
+function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection, bulletType = 'tank' }: { position: [number, number, number], velocity: { x: number, y: number }, onHit?: (data: BulletHitData) => void, ownerTankHandle?: number, firingDirection: { x: number; y: number }, bulletType?: 'tank' | 'turret' }) {
   const bulletRef = useRef<RapierRigidBody>(null)
   const [active, setActive] = useState(true)
 
@@ -130,7 +140,7 @@ function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }:
     // Remove bullet if it goes off screen
     if (Math.abs(pos.x) > bulletConfig.boundaryLimits.sideScroll.x || Math.abs(pos.y) > bulletConfig.boundaryLimits.sideScroll.y) {
       setActive(false)
-      onHit?.({ hitTankHandle: undefined, firingDirection })
+      onHit?.({ hitTankHandle: undefined, firingDirection, bulletType })
     }
   })
 
@@ -149,7 +159,7 @@ function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }:
           return
         }
         setActive(false)
-        onHit?.({ hitTankHandle: otherHandle, firingDirection })
+        onHit?.({ hitTankHandle: otherHandle, firingDirection, bulletType })
       }}
     >
       <Suspense fallback={
@@ -178,7 +188,7 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
   const tankRef = externalTankRef || internalTankRef
   const tankGroupRef = useRef<THREE.Group>(null)
   const keysPressed = useRef<Set<string>>(new Set())
-  const [bullets, setBullets] = useState<Array<{ id: number, position: [number, number, number], velocity: { x: number, y: number }, ownerTankHandle?: number, firingDirection: { x: number; y: number } }>>([])
+  const [bullets, setBullets] = useState<Array<{ id: number, position: [number, number, number], velocity: { x: number, y: number }, ownerTankHandle?: number, firingDirection: { x: number; y: number }, bulletType: 'tank' | 'turret' }>>([])
   const lastFireTime = useRef<number>(0)
   const fireCooldown = bulletConfig.fireCooldown
 
@@ -205,15 +215,18 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
         tankPos.y + bulletConfig.verticalOffset, // Offset upward for cannon height
         tankPos.z
       ] as [number, number, number],
-      velocity: { 
+      velocity: {
         x: direction * bulletConfig.speedSideScroll, // Fire speed
-        y: 0 
+        y: 0
       },
       ownerTankHandle: tankHandle,
-      firingDirection
+      firingDirection,
+      bulletType: 'tank' as const
     }
     setBullets(prev => [...prev, newBullet])
+    playTankFireSound()
   }, [player, tankRef])
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -249,7 +262,7 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [player, fireBullet])
+  }, [player, fireBullet, fireCooldown])
 
   useFrame(() => {
     if (!tankRef.current) return
@@ -318,6 +331,7 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
           velocity={bullet.velocity}
           ownerTankHandle={bullet.ownerTankHandle}
           firingDirection={bullet.firingDirection}
+          bulletType={bullet.bulletType}
           onHit={(hitData) => {
             setBullets(prev => prev.filter(b => b.id !== bullet.id))
             onBulletHit?.(hitData)
@@ -472,15 +486,180 @@ function BackgroundBuildings({ roadY }: { roadY: number }) {
   )
 }
 
+// Turret Bullet Component - dedicated component for turret-to-turret fire
+// Larger, more visible, distinct from tank bullets
+function TurretBullet({ position, velocity, targetTurretPos, onHit, owner }: {
+  position: [number, number, number],
+  velocity: { x: number, y: number },
+  targetTurretPos: [number, number, number],
+  onHit?: (owner: 'player1' | 'player2') => void,
+  owner: 'player1' | 'player2'
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+  const [active, setActive] = useState(true)
+  const currentPos = useRef({ x: position[0], y: position[1], z: position[2] })
+
+  useFrame((_state, delta) => {
+    if (!groupRef.current || !active) return
+
+    // Move bullet
+    currentPos.current.x += velocity.x * delta * bulletConfig.velocityMultiplier
+    currentPos.current.y += velocity.y * delta * bulletConfig.velocityMultiplier
+
+    groupRef.current.position.set(
+      currentPos.current.x,
+      currentPos.current.y,
+      currentPos.current.z
+    )
+
+    // Check if bullet reached or passed the target turret X position
+    const targetX = targetTurretPos[0]
+    const direction = velocity.x > 0 ? 1 : -1
+
+    // Hit detection: bullet has reached or crossed the target X position
+    if ((direction > 0 && currentPos.current.x >= targetX) ||
+        (direction < 0 && currentPos.current.x <= targetX)) {
+      setActive(false)
+      onHit?.(owner)
+      return
+    }
+
+    // Remove bullet if it goes off screen
+    if (Math.abs(currentPos.current.x) > bulletConfig.boundaryLimits.sideScroll.x ||
+        Math.abs(currentPos.current.y) > bulletConfig.boundaryLimits.sideScroll.y) {
+      setActive(false)
+    }
+  })
+
+  if (!active) return null
+
+  // Turret bullets - using Missile model with config values
+  const missileRotation = owner === 'player1'
+    ? bulletConfig.turretFire.missileRotationP1
+    : bulletConfig.turretFire.missileRotationP2
+
+  return (
+    <group ref={groupRef} position={position}>
+      <Suspense fallback={
+        <mesh castShadow>
+          <sphereGeometry args={[0.1, 8, 8]} />
+          <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={1} />
+        </mesh>
+      }>
+        <group rotation={missileRotation}>
+          <SafeModel modelPath={MODELS.missile} scale={bulletConfig.turretFire.missileScale} />
+        </group>
+      </Suspense>
+    </group>
+  )
+}
+
 // Main Clean Battle Scene - Enhanced with realistic environment
 function CleanBattleScene() {
   // Road position - lowered significantly to eliminate brown space at bottom
   // With camera at y=-2.5 and fov=60, road positioned to fill viewport
   const roadY = environmentConfig.road.yPosition
-  
+
   // Refs to store both tank RigidBody references for collision effects
   const player1TankRef = useRef<RapierRigidBody>(null)
   const player2TankRef = useRef<RapierRigidBody>(null)
+
+  // Turret fire state
+  const [turretBullets, setTurretBullets] = useState<Array<{
+    id: number,
+    position: [number, number, number],
+    velocity: { x: number, y: number },
+    owner: 'player1' | 'player2',
+    targetTurretPos: [number, number, number]
+  }>>([])
+  const lastTurretFireTime = useRef<{ player1: number, player2: number }>({ player1: 0, player2: 0 })
+
+  // Get turret positions from config
+  const turret1Pos: [number, number, number] = [
+    environmentConfig.scenePositions.turrets.turret1.offset[0],
+    roadY + environmentConfig.scenePositions.turrets.turret1.offset[1],
+    environmentConfig.scenePositions.turrets.turret1.offset[2]
+  ]
+  const turret2Pos: [number, number, number] = [
+    environmentConfig.scenePositions.turrets.turret2.offset[0],
+    roadY + environmentConfig.scenePositions.turrets.turret2.offset[1],
+    environmentConfig.scenePositions.turrets.turret2.offset[2]
+  ]
+
+  // Fire turret bullets - fires 2 parallel bullets from actual turret nozzle positions
+  const fireTurretBullets = useCallback((player: 'player1' | 'player2') => {
+    const currentTime = Date.now()
+    if (currentTime - lastTurretFireTime.current[player] < bulletConfig.turretFire.cooldown) return
+
+    lastTurretFireTime.current[player] = currentTime
+
+    // Use config values for all turret fire parameters
+    const { nozzleHeightOffset, verticalOffset, visibleZ, startOffset, endOffset, speedMultiplier } = bulletConfig.turretFire
+
+    const sourceTurretX = player === 'player1' ? turret1Pos[0] : turret2Pos[0]
+    const sourceTurretY = player === 'player1' ? turret1Pos[1] : turret2Pos[1]
+    const targetTurretX = player === 'player1' ? turret2Pos[0] : turret1Pos[0]
+    const targetTurretY = player === 'player1' ? turret2Pos[1] : turret1Pos[1]
+
+    const direction = player === 'player1' ? 1 : -1
+
+    // Fire two parallel bullets with vertical offset from turret nozzle
+    const newBullets = []
+    for (let i = 0; i < 2; i++) {
+      const yOffset = i === 0 ? -verticalOffset : verticalOffset
+      newBullets.push({
+        id: Date.now() + Math.random() + i,
+        position: [
+          sourceTurretX - direction * startOffset, // Start behind the turret
+          sourceTurretY + nozzleHeightOffset + yOffset, // Turret y + nozzle height + offset
+          visibleZ
+        ] as [number, number, number],
+        velocity: {
+          x: direction * bulletConfig.speedSideScroll * speedMultiplier, // Speed from config
+          y: 0 // Parallel - no vertical velocity
+        },
+        owner: player,
+        targetTurretPos: [targetTurretX + direction * endOffset, targetTurretY + nozzleHeightOffset, visibleZ] // Go past enemy turret
+      })
+    }
+    setTurretBullets(prev => [...prev, ...newBullets])
+    playTurretFireSound()
+  }, [turret1Pos, turret2Pos])
+
+  // Handle turret bullet hit
+  const handleTurretHit = useCallback((owner: 'player1' | 'player2') => {
+    // Damage the enemy player when their turret is hit
+    const targetPlayer = owner === 'player1' ? 'player2' : 'player1'
+    triggerDamage(targetPlayer, DamageType.HIGH, 'bullet')
+    playHitSound()
+  }, [])
+
+  // Key handlers for turret fire (Z for P1, M for P2)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return
+
+      if (e.key.toLowerCase() === 'z') {
+        fireTurretBullets('player1')
+      }
+      if (e.key.toLowerCase() === 'm') {
+        fireTurretBullets('player2')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [fireTurretBullets])
+
+  // Initialize audio: preload sounds and start ambient crowd noise
+  useEffect(() => {
+    preloadAllSounds()
+    startAmbientSound()
+
+    return () => {
+      stopAmbientSound()
+    }
+  }, [])
 
   // Recoil effect: Push shooter tank backward (opposite to firing direction)
   const applyRecoilEffect = useCallback((tankRef: React.RefObject<RapierRigidBody | null>, firingDirection: { x: number; y: number }) => {
@@ -548,9 +727,12 @@ function CleanBattleScene() {
       hitPlayerId = 'player2'
     }
     
-    // Apply damage to hit player (default to MEDIUM damage for now)
+    // Apply damage to hit player
+    // Turret bullets deal HIGH damage, regular tank bullets deal MEDIUM damage
     if (hitPlayerId) {
-      triggerDamage(hitPlayerId, DamageType.MEDIUM, 'bullet')
+      const damageType = hitData.bulletType === 'turret' ? DamageType.HIGH : DamageType.MEDIUM
+      triggerDamage(hitPlayerId, damageType, 'bullet')
+      playHitSound()
     }
     
     // Apply recoil to shooter tank
@@ -671,6 +853,21 @@ function CleanBattleScene() {
       
       {/* Player 2 Health Bar - Pinned to tank */}
       <HealthBar3D player="player2" tankRef={player2TankRef} />
+
+      {/* TURRET BULLETS - Fired from turrets, targeting enemy turrets */}
+      {turretBullets.map(bullet => (
+        <TurretBullet
+          key={bullet.id}
+          position={bullet.position}
+          velocity={bullet.velocity}
+          targetTurretPos={bullet.targetTurretPos}
+          owner={bullet.owner}
+          onHit={(owner) => {
+            setTurretBullets(prev => prev.filter(b => b.id !== bullet.id))
+            handleTurretHit(owner)
+          }}
+        />
+      ))}
 
       {/* ENHANCED LIGHTING - More realistic lighting setup */}
       {/* Ambient light for overall illumination - brighter */}
