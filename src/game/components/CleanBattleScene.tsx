@@ -23,7 +23,7 @@ const MODELS = {
   castle: '/models/Castle.glb',
   barracks: '/models/Barracks.glb',
   fortress: '/models/Fortress.glb',
-  bullet: '/models/Bullet.glb'
+  bullet: '/src/game/assets/3d models/all-models/Bullet.glb'
 }
 
 // Preload models
@@ -51,7 +51,8 @@ const SCALES = {
   largeBuilding: 1.5, // Large building scale for background
   castle: 1.8,     // Castle scale for background
   barracks: 1.2,   // Barracks scale for background
-  fortress: 1.5    // Fortress scale for background
+  fortress: 1.5,   // Fortress scale for background
+  bullet: 0.08      // Bullet scale - may need adjustment based on model size
 }
 
 // Safe model loader with better error handling
@@ -128,16 +129,22 @@ function Bullet({ position, velocity, onHit, ownerTankHandle }: { position: [num
         onHit?.()
       }}
     >
-      <mesh castShadow>
-        <sphereGeometry args={[0.15, 8, 8]} />
-        <meshStandardMaterial
-          color="#ffaa00"
-          emissive="#ff6600"
-          emissiveIntensity={0.8}
-          metalness={0.8}
-          roughness={0.2}
-        />
-      </mesh>
+      <Suspense fallback={
+        <mesh castShadow>
+          <sphereGeometry args={[0.15, 8, 8]} />
+          <meshStandardMaterial
+            color="#ffaa00"
+            emissive="#ff6600"
+            emissiveIntensity={0.8}
+            metalness={0.8}
+            roughness={0.2}
+          />
+        </mesh>
+      }>
+        <group rotation={[0, -Math.PI / 2, 0]}>
+          <SafeModel modelPath={MODELS.bullet} scale={SCALES.bullet} />
+        </group>
+      </Suspense>
     </RigidBody>
   )
 }
