@@ -1,4 +1,4 @@
-import { useRef, Suspense, useEffect } from 'react'
+import { useRef, Suspense, useEffect, useState, useCallback } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { RigidBody, RapierRigidBody } from '@react-three/rapier'
 import { useGLTF } from '@react-three/drei'
@@ -22,7 +22,8 @@ const MODELS = {
   largeBuilding: '/models/Large Building.glb',
   castle: '/models/Castle.glb',
   barracks: '/models/Barracks.glb',
-  fortress: '/models/Fortress.glb'
+  fortress: '/models/Fortress.glb',
+  bullet: '/models/Bullet.glb'
 }
 
 // Preload models
@@ -86,16 +87,100 @@ function SafeModel({ modelPath, scale = 1 }: { modelPath: string, scale?: number
   )
 }
 
+// Bullet Component
+function Bullet({ position, velocity, onHit, ownerTankHandle }: { position: [number, number, number], velocity: { x: number, y: number }, onHit?: () => void, ownerTankHandle?: number }) {
+  const bulletRef = useRef<RapierRigidBody>(null)
+  const [active, setActive] = useState(true)
+
+  useFrame((_state, delta) => {
+    if (!bulletRef.current || !active) return
+
+    // Move bullet
+    const pos = bulletRef.current.translation()
+    bulletRef.current.setTranslation({
+      x: pos.x + velocity.x * delta * 10,
+      y: pos.y + velocity.y * delta * 10,
+      z: pos.z
+    }, true)
+
+    // Remove bullet if it goes off screen
+    if (Math.abs(pos.x) > 25 || Math.abs(pos.y) > 20) {
+      setActive(false)
+      onHit?.()
+    }
+  })
+
+  if (!active) return null
+
+  return (
+    <RigidBody
+      ref={bulletRef}
+      position={position}
+      type="kinematicPosition"
+      sensor
+      onIntersectionEnter={(collision) => {
+        const otherHandle = collision.other.rigidBody?.handle
+        // Ignore collision with own tank
+        if (ownerTankHandle !== undefined && otherHandle === ownerTankHandle) {
+          return
+        }
+        setActive(false)
+        onHit?.()
+      }}
+    >
+      <mesh castShadow>
+        <sphereGeometry args={[0.15, 8, 8]} />
+        <meshStandardMaterial
+          color="#ffaa00"
+          emissive="#ff6600"
+          emissiveIntensity={0.8}
+          metalness={0.8}
+          roughness={0.2}
+        />
+      </mesh>
+    </RigidBody>
+  )
+}
+
 // Enhanced Player Tank Component
 function PlayerTank({ player, position }: { player: 'player1' | 'player2', position: [number, number, number] }) {
   const tankRef = useRef<RapierRigidBody>(null)
   const tankGroupRef = useRef<THREE.Group>(null)
   const keysPressed = useRef<Set<string>>(new Set())
+  const [bullets, setBullets] = useState<Array<{ id: number, position: [number, number, number], velocity: { x: number, y: number }, ownerTankHandle?: number }>>([])
+  const lastFireTime = useRef<number>(0)
+  const fireCooldown = 500 // milliseconds between shots
 
   // Rotate both tanks 180 degrees from default, then adjust so they face each other
   // Player 1 (left) faces right (towards center): 0 + Math.PI = Math.PI
   // Player 2 (right) faces left (towards center): Math.PI + Math.PI = 0 (or 2*Math.PI)
   const facing = player === 'player1' ? Math.PI : 0
+
+  const fireBullet = useCallback(() => {
+    if (!tankRef.current) return
+
+    const tankPos = tankRef.current.translation()
+    // Determine firing direction based on player facing
+    // Player 1 faces right (facing = Math.PI), so fire right (+x direction)
+    // Player 2 faces left (facing = 0), so fire left (-x direction)
+    const direction = player === 'player1' ? 1 : -1
+    const bulletOffset = direction * 1.5 // Increased offset to clear tank collision bounds
+    const tankHandle = tankRef.current.handle
+    const newBullet = {
+      id: Date.now() + Math.random(), // Ensure unique ID
+      position: [
+        tankPos.x + bulletOffset, // Offset forward from tank
+        tankPos.y + 0.5, // Offset upward for cannon height
+        tankPos.z
+      ] as [number, number, number],
+      velocity: { 
+        x: direction * 2, // Fire speed - reduced for visibility
+        y: 0 
+      },
+      ownerTankHandle: tankHandle
+    }
+    setBullets(prev => [...prev, newBullet])
+  }, [player])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -109,10 +194,14 @@ function PlayerTank({ player, position }: { player: 'player1' | 'player2', posit
         tankRef.current.applyImpulse({ x: 0, y: 0.8, z: 0 }, true)
       }
 
-      // Fire (Space for P1, Enter for P2)
-      if ((player === 'player1' && e.key === ' ') ||
-          (player === 'player2' && e.key === 'Enter')) {
-        console.log(`${player} fires!`)
+      // Fire (Space for P1, Enter for P2) - prevent key repeat
+      if (!e.repeat && ((player === 'player1' && e.key === ' ') ||
+          (player === 'player2' && e.key === 'Enter'))) {
+        const currentTime = Date.now()
+        if (currentTime - lastFireTime.current >= fireCooldown && tankRef.current) {
+          fireBullet()
+          lastFireTime.current = currentTime
+        }
       }
     }
 
@@ -127,7 +216,7 @@ function PlayerTank({ player, position }: { player: 'player1' | 'player2', posit
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [player])
+  }, [player, fireBullet])
 
   useFrame(() => {
     if (!tankRef.current) return
@@ -147,45 +236,60 @@ function PlayerTank({ player, position }: { player: 'player1' | 'player2', posit
   })
 
   return (
-    <RigidBody
-      ref={tankRef}
-      position={position}
-      colliders="hull"
-      mass={3}
-      friction={0.8}
-      restitution={0.1}
-    >
-      <group ref={tankGroupRef} scale={SCALES.tank} rotation={[0, facing, 0]}>
-        <Suspense fallback={
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[3, 1.5, 4]} />
-            <meshStandardMaterial color={player === 'player1' ? '#4a6fa5' : '#a54a4a'} />
+    <>
+      <RigidBody
+        ref={tankRef}
+        position={position}
+        colliders="hull"
+        mass={3}
+        friction={0.8}
+        restitution={0.1}
+      >
+        <group ref={tankGroupRef} scale={SCALES.tank} rotation={[0, facing, 0]}>
+          <Suspense fallback={
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[3, 1.5, 4]} />
+              <meshStandardMaterial color={player === 'player1' ? '#4a6fa5' : '#a54a4a'} />
+            </mesh>
+          }>
+            <SafeModel modelPath={MODELS.tank} scale={1.2} />
+          </Suspense>
+
+          {/* Team indicator bar - more visible */}
+          <mesh position={[0, 2.5, 0]} castShadow>
+            <boxGeometry args={[2, 0.3, 0.3]} />
+            <meshStandardMaterial
+              color={player === 'player1' ? '#0066ff' : '#ff0066'}
+              emissive={player === 'player1' ? '#0066ff' : '#ff0066'}
+              emissiveIntensity={0.6}
+            />
           </mesh>
-        }>
-          <SafeModel modelPath={MODELS.tank} scale={1.2} />
-        </Suspense>
 
-        {/* Team indicator bar - more visible */}
-        <mesh position={[0, 2.5, 0]} castShadow>
-          <boxGeometry args={[2, 0.3, 0.3]} />
-          <meshStandardMaterial
-            color={player === 'player1' ? '#0066ff' : '#ff0066'}
-            emissive={player === 'player1' ? '#0066ff' : '#ff0066'}
-            emissiveIntensity={0.6}
-          />
-        </mesh>
+          {/* Player label */}
+          <mesh position={[0, 3.2, 0]}>
+            <boxGeometry args={[1.2, 0.4, 0.1]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive={player === 'player1' ? '#0066ff' : '#ff0066'}
+              emissiveIntensity={0.3}
+            />
+          </mesh>
+        </group>
+      </RigidBody>
 
-        {/* Player label */}
-        <mesh position={[0, 3.2, 0]}>
-          <boxGeometry args={[1.2, 0.4, 0.1]} />
-          <meshStandardMaterial
-            color="#ffffff"
-            emissive={player === 'player1' ? '#0066ff' : '#ff0066'}
-            emissiveIntensity={0.3}
-          />
-        </mesh>
-      </group>
-    </RigidBody>
+      {/* Render bullets */}
+      {bullets.map(bullet => (
+        <Bullet
+          key={bullet.id}
+          position={bullet.position}
+          velocity={bullet.velocity}
+          ownerTankHandle={bullet.ownerTankHandle}
+          onHit={() => {
+            setBullets(prev => prev.filter(b => b.id !== bullet.id))
+          }}
+        />
+      ))}
+    </>
   )
 }
 
@@ -212,11 +316,11 @@ function Road({ roadY }: { roadY: number }) {
           <RigidBody 
             key={`path-segment-${i}`} 
             type="fixed" 
-            position={[xPosition, roadY, 0]}
+            position={[xPosition, roadY, 0.5]}
           >
             <Suspense fallback={
               <mesh receiveShadow castShadow>
-                <boxGeometry args={[3.5, 0.1, 5]} />
+                <boxGeometry args={[3.5, 2, 10]} />
                 <meshStandardMaterial color="#87CEEB" />
               </mesh>
             }>
@@ -231,32 +335,18 @@ function Road({ roadY }: { roadY: number }) {
 
 // Enhanced Animated Clouds with multiple types
 function Clouds() {
-  const cloud1Ref = useRef<THREE.Group>(null)
   const cloud2Ref = useRef<THREE.Group>(null)
-  const cloud3Ref = useRef<THREE.Group>(null)
-  const cloud4Ref = useRef<THREE.Group>(null)
   const cloud5Ref = useRef<THREE.Group>(null)
 
   useFrame((state) => {
     const time = state.clock.elapsedTime
     
     // Slow drifting clouds
-    if (cloud1Ref.current) {
-      cloud1Ref.current.position.x = Math.sin(time * 0.03) * 2 - 5
-      cloud1Ref.current.position.y = 2.5 + Math.sin(time * 0.05) * 0.2
-    }
     if (cloud2Ref.current) {
       cloud2Ref.current.position.x = Math.cos(time * 0.025) * 2.5
       cloud2Ref.current.position.y = 2.8 + Math.cos(time * 0.04) * 0.15
     }
-    if (cloud3Ref.current) {
-      cloud3Ref.current.position.x = Math.sin(time * 0.02) * 2 + 5
-      cloud3Ref.current.position.y = 2.6 + Math.sin(time * 0.06) * 0.2
-    }
-    if (cloud4Ref.current) {
-      cloud4Ref.current.position.x = Math.cos(time * 0.035) * 1.5 - 7
-      cloud4Ref.current.position.y = 2.3 + Math.sin(time * 0.03) * 0.1
-    }
+    
     if (cloud5Ref.current) {
       cloud5Ref.current.position.x = Math.sin(time * 0.028) * 1.8 + 7
       cloud5Ref.current.position.y = 2.4 + Math.cos(time * 0.05) * 0.15
@@ -266,19 +356,8 @@ function Clouds() {
   return (
     <>
       {/* Main clouds - positioned behind sky layers to avoid clipping */}
-      {/* Cloud 1 - Left side, spread out */}
-      <group ref={cloud1Ref} position={[-8, 2.5, -0]}>
-        <Suspense fallback={
-          <mesh>
-            <sphereGeometry args={[1.5, 16, 16]} />
-            <meshBasicMaterial color="#ffffff" opacity={0.7} transparent />
-          </mesh>
-        }>
-          <SafeModel modelPath={MODELS.cloud} scale={SCALES.cloud * 1.2} />
-        </Suspense>
-      </group>
 
-      {/* Cloud 2 - Left-center, higher up */}
+      {/* Cloud 1 - Left-center, higher up */}
       <group ref={cloud2Ref} position={[-2, 5, -3]}>
         <Suspense fallback={
           <mesh>
@@ -290,24 +369,13 @@ function Clouds() {
         </Suspense>
       </group>
 
-      {/* Cloud 3 - Center-left */}
-      <group ref={cloud3Ref} position={[2, 2.6, -4]}>
-        <Suspense fallback={
-          <mesh>
-            <sphereGeometry args={[1.3, 16, 16]} />
-            <meshBasicMaterial color="#ffffff" opacity={0.7} transparent />
-          </mesh>
-        }>
-          <SafeModel modelPath={MODELS.cloud} scale={SCALES.cloud * 1.1} />
-        </Suspense>
-      </group>
 
-      {/* Cloud 5 - Right side, spread out */}
+      {/* Cloud 2 - Right side, spread out */}
       <group ref={cloud5Ref} position={[6, 2, -4]}>
         <Suspense fallback={
           <mesh>
             <sphereGeometry args={[1.4, 16, 16]} />
-            <meshBasicMaterial color="#ffffff" opacity={0.6} transparent />
+            <meshBasicMaterial color="#ffffff" opacity={1} transparent />
           </mesh>
         }>
           <SafeModel modelPath={MODELS.clouds} scale={SCALES.clouds * 0.8} />
@@ -323,13 +391,13 @@ function BackgroundBuildings({ roadY }: { roadY: number }) {
     <>
       {/* Buildings positioned in background (behind clouds, in front of sky) */}
       {/* Left side buildings */}
-      <group position={[-7, roadY + 1, -1]}>
+      <group position={[-7, roadY + 1, 1]}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.skyscraper} scale={SCALES.skyscraper} />
         </Suspense>
       </group>
 
-      <group position={[-5, roadY + 0.8, -0.8]}>
+      <group position={[-5, roadY + 0.8, 1]}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.largeBuilding} scale={SCALES.largeBuilding} />
         </Suspense>
@@ -337,13 +405,13 @@ function BackgroundBuildings({ roadY }: { roadY: number }) {
 
       {/* Right side buildings */}
 
-      <group position={[3, roadY + 1, -0.5]}>
+      <group position={[3, roadY + 1, 1]}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.largeBuilding} scale={SCALES.largeBuilding} />
         </Suspense>
       </group>
 
-      <group position={[6, roadY + 0.8, -1]}>
+      <group position={[6, roadY + 0.8, 1]}>
         <Suspense fallback={null}>
           <SafeModel modelPath={MODELS.skyscraper} scale={SCALES.skyscraper} />
         </Suspense>
@@ -356,7 +424,7 @@ function BackgroundBuildings({ roadY }: { roadY: number }) {
 function CleanBattleScene() {
   // Road position - lowered significantly to eliminate brown space at bottom
   // With camera at y=-2.5 and fov=60, road positioned to fill viewport
-  const roadY = -5.2
+  const roadY = -5.8
 
   return (
     <>
@@ -380,7 +448,7 @@ function CleanBattleScene() {
 
       {/* SKY BACKGROUND - Large plane positioned forward to avoid gray rendering issues */}
       {/* Moved forward (less negative Z) to stay within camera view and avoid fog rendering problems */}
-      <mesh position={[0, 0, -20]}>
+      <mesh position={[0, 0, -5]}>
         <planeGeometry args={[500, 1000]} />
         <meshBasicMaterial color="#87CEEB" />
       </mesh>
@@ -441,13 +509,13 @@ function CleanBattleScene() {
       {/* PLAYER 1 TANK - Left side, facing RIGHT (towards center) */}
       <PlayerTank
         player="player1"
-        position={[-3, roadY + 2.5, 2]}
+        position={[-3, roadY + 2.5, 2.5]}
       />
 
       {/* PLAYER 2 TANK - Right side, facing LEFT (towards center) */}
       <PlayerTank
         player="player2"
-        position={[3, roadY + 2.5, 2]}
+        position={[3, roadY + 2.5, 2.5]}
       />
 
       {/* ENHANCED LIGHTING - More realistic lighting setup */}

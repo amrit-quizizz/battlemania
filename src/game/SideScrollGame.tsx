@@ -26,7 +26,7 @@ function SideScrollGame() {
         {/* Side-view camera for 2.5D perspective - lowered significantly to eliminate brown space */}
         <PerspectiveCamera
           makeDefault
-          position={[0, -2.5, 7]}
+          position={[0, -2.5, 9]}
           fov={60}
           near={0.1}
           far={100}

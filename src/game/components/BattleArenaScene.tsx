@@ -355,7 +355,7 @@ function BattleArenaScene() {
       <SkyEnvironment />
 
       {/* Background Buildings */}
-      <BackgroundBuildings />
+      {/* <BackgroundBuildings /> */}
 
       {/* Trees */}
       <RigidBody type="fixed" position={[-10, 0, -3]}>
