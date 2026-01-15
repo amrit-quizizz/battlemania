@@ -75,6 +75,9 @@ interface GameSession {
   // Turn data
   currentTurn: number;
   playerStates: Map<WebSocket, PlayerTurnState>;
+
+  // Popup completion tracking
+  popupCompletedPlayers: Set<string>;
 }
 
 // Store game sessions
@@ -372,6 +375,9 @@ function transitionToShowingPopup(session: GameSession): void {
   // Update state
   session.currentState = GameState.SHOWING_POPUP;
 
+  // Clear popup completion tracking for this popup phase
+  session.popupCompletedPlayers.clear();
+
   // Broadcast popup state to all players
   [...session.teamA, ...session.teamB].forEach(player => {
     if (player.ws.readyState === WebSocket.OPEN) {
@@ -385,7 +391,7 @@ function transitionToShowingPopup(session: GameSession): void {
     }
   });
 
-  console.log(`Turn ${session.currentTurn}: Transitioned to SHOWING_POPUP (waiting for continue signal)`);
+  console.log(`Turn ${session.currentTurn}: Transitioned to SHOWING_POPUP (waiting for all players to complete)`);
 }
 
 function transitionToGameOver(session: GameSession): void {
@@ -442,6 +448,7 @@ wss.on('connection', (ws: WebSocket) => {
             turnTimerInterval: null,
             currentTurn: 0,
             playerStates: new Map(),
+            popupCompletedPlayers: new Set(),
           };
 
           gameSessions.set(gameCode, session);
@@ -897,10 +904,39 @@ wss.on('connection', (ws: WebSocket) => {
             return;
           }
 
-          console.log(`Popup continue signal received for game ${gameCode}, starting next turn`);
+          // Find the player who sent this message
+          const allPlayers = [...session.teamA, ...session.teamB];
+          const player = allPlayers.find(p => p.ws === ws);
 
-          // Transition to next turn
-          transitionToLevelSelection(session);
+          if (!player) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Player not found',
+            }));
+            return;
+          }
+
+          // Mark this player as having completed the popup
+          session.popupCompletedPlayers.add(player.id);
+          console.log(`Player ${player.name} (${player.id}) completed popup for game ${gameCode}. Progress: ${session.popupCompletedPlayers.size}/${allPlayers.length}`);
+
+          // Check if all players have completed the popup
+          const allPlayersCompleted = allPlayers.every(p => session.popupCompletedPlayers.has(p.id));
+
+          if (allPlayersCompleted) {
+            console.log(`All players completed popup for game ${gameCode}, starting next turn`);
+
+            // Transition to next turn
+            transitionToLevelSelection(session);
+          } else {
+            // Send acknowledgment to the player who completed
+            ws.send(JSON.stringify({
+              type: 'popup_continue_ack',
+              message: 'Waiting for other player to complete...',
+              completed: session.popupCompletedPlayers.size,
+              total: allPlayers.length,
+            }));
+          }
 
           break;
         }

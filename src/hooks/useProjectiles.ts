@@ -16,8 +16,8 @@ export interface Projectile {
 }
 
 const PLAYER_POSITIONS = {
-  P1: { x: 132, y: 676 }, // Tank 1 turret center
-  P2: { x: 1482, y: 676 }, // Tank 2 turret center
+  P1: { x: 107, y: 676 }, // Tank 1 turret center
+  P2: { x: 1545, y: 676 }, // Tank 2 turret center
 };
 
 export const useProjectiles = () => {

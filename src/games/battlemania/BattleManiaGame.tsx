@@ -11,9 +11,9 @@ import { getAmmunitionDetails, AMMUNITION_MAP } from '../../game/data/ammunition
 import { getWallDetails, WALL_MAP } from '../../game/data/walls';
 import type { GameComponentProps } from '../types';
 
-const MAX_TURNS = 10;
+const MAX_TURNS = 1;
 
-const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd }) => {
+const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd, initialPoints, hideControls }) => {
   const currentGame = useAppSelector(selectCurrentGame);
   const turnHistory = useAppSelector(selectCurrentGameTurnHistory);
   const dispatch = useAppDispatch();
@@ -30,7 +30,10 @@ const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd }) => {
       { id: 'P1' },
       { id: 'P2' }
     ];
-    const gameId = startGame({ players }, dispatch);
+    const gameId = startGame({
+      players,
+      initialPoints: initialPoints ? { P1: initialPoints.P1, P2: initialPoints.P2 } : undefined
+    }, dispatch);
     setCurrentGameId(gameId);
   };
 
@@ -49,6 +52,32 @@ const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd }) => {
 
     const p1 = currentGame.players[0];
     const p2 = currentGame.players[1];
+
+    // Auto-select ammunition based on points when hideControls is true
+    if (hideControls) {
+      // Find best ammunition each player can afford
+      const allAmmunition = Object.values(AMMUNITION_MAP).sort((a, b) => b.cost - a.cost); // Sort by cost descending
+
+      // Auto-select for P1
+      if (!p1.selectedAmmunitionId) {
+        const affordableP1Ammo = allAmmunition.find(ammo => ammo.cost <= p1.points);
+        if (affordableP1Ammo) {
+          dispatch(selectAmmunition({ gameId: currentGameId, playerId: 'P1', ammunitionId: affordableP1Ammo.ammunitionId }));
+        }
+      }
+
+      // Auto-select for P2
+      if (!p2.selectedAmmunitionId) {
+        const affordableP2Ammo = allAmmunition.find(ammo => ammo.cost <= p2.points);
+        if (affordableP2Ammo) {
+          dispatch(selectAmmunition({ gameId: currentGameId, playerId: 'P2', ammunitionId: affordableP2Ammo.ammunitionId }));
+        }
+      }
+
+      // Wait for next render cycle to execute turn with updated selections
+      setTimeout(() => handlePlayTurn(), 0);
+      return;
+    }
 
     // Get ammunition and wall details (null ammunition means "No Attack")
     const p1Ammo = p1.selectedAmmunitionId ? getAmmunitionDetails(p1.selectedAmmunitionId) : null;
@@ -105,6 +134,13 @@ const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd }) => {
     onGameEnd?.();
   };
 
+  // Auto-start game when initialPoints are provided (for quiz integration)
+  useEffect(() => {
+    if (initialPoints && !currentGameId) {
+      handleStartGame();
+    }
+  }, [initialPoints]);
+
   // Auto-end game after MAX_TURNS
   useEffect(() => {
     if (currentGame && currentGame.status === 'ACTIVE' && currentGame.currentTurn > MAX_TURNS) {
@@ -121,6 +157,32 @@ const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd }) => {
       }
     }
   }, [currentGame?.players]);
+
+  // Auto-play turn when game starts in hideControls mode
+  useEffect(() => {
+    if (hideControls && currentGame && currentGame.status === 'ACTIVE' && currentGame.currentTurn === 1) {
+      // Small delay to ensure game is fully initialized
+      const timer = setTimeout(() => {
+        handlePlayTurn();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [hideControls, currentGame?.status, currentGame?.currentTurn]);
+
+  // If hideControls is true, render only the game canvas without overlay UI
+  if (hideControls) {
+    return (
+      <div className="hide-controls-wrapper" style={{ width: '100%', height: '100%', position: 'relative' }}>
+        <GameCanvas game={currentGame} projectiles={projectiles} onSelectAmmunition={handleSelectAmmunition} onSelectWall={handleSelectWall} />
+        {/* Hide the bottom overlay with CSS - target the last absolute positioned div in GameCanvas */}
+        <style>{`
+          .hide-controls-wrapper > div > div[style*="position: absolute"][style*="bottom: 0"] {
+            display: none !important;
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', height: '100%', width: '100%' }}>

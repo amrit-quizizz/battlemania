@@ -53,8 +53,8 @@ export const gameSlice = createSlice({
   name: 'game',
   initialState,
   reducers: {
-    startGame: (state, action: PayloadAction<{ gameId: string; playerIds: string[] }>) => {
-      const { gameId, playerIds } = action.payload;
+    startGame: (state, action: PayloadAction<{ gameId: string; playerIds: string[]; initialPoints?: Record<string, number> }>) => {
+      const { gameId, playerIds, initialPoints } = action.payload;
 
       const newGame: GameInstance = {
         gameId,
@@ -64,7 +64,7 @@ export const gameSlice = createSlice({
           playerId,
           health: 100,
           totalDamageDealt: 0,
-          points: 100,
+          points: initialPoints?.[playerId] || 100,
           selectedAmmunitionId: null,
           selectedWallId: null,
         })),

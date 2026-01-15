@@ -25,28 +25,35 @@ const GameCanvas = ({ game, projectiles, onSelectAmmunition, onSelectWall }: Gam
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const drawTank = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string) => {
-    const scale = 1.3; // Scale up the tank
+    const scale = 1.5; // Scale up the tank
+    const bodyWidth = 50 * scale;
+    const bodyHeight = 30 * scale;
+    const bodyY = y + (20 * scale);
+    const wheelRadius = 6 * scale;
 
     // Tank body (main rectangle)
     ctx.fillStyle = color;
-    ctx.fillRect(x, y + 20, 50 * scale, 30 * scale);
+    ctx.fillRect(x, bodyY, bodyWidth, bodyHeight);
 
     // Tank turret (smaller rectangle on top)
-    ctx.fillRect(x + 15 * scale, y + 10, 20 * scale, 25 * scale);
+    ctx.fillRect(x + (15 * scale), y + (10 * scale), 20 * scale, 25 * scale);
 
-    // Tank tracks (wheels)
+    // Tank tracks (wheels) - positioned at bottom with 50% submerged
     ctx.fillStyle = '#1a1a1a';
+    const wheelY = bodyY + bodyHeight + (wheelRadius * 0.5); // 50% submerged below tank
+    const spacing = (bodyWidth - wheelRadius * 2) / 4; // Space between wheels
     for (let i = 0; i < 5; i++) {
       ctx.beginPath();
-      ctx.arc(x + 10 * scale + (i * 12 * scale), y + 52 * scale, 6, 0, Math.PI * 2);
+      const wheelX = x + wheelRadius + (i * spacing);
+      ctx.arc(wheelX, wheelY, wheelRadius, 0, Math.PI * 2);
       ctx.fill();
     }
 
     // Tank outline
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 2;
-    ctx.strokeRect(x, y + 20, 50 * scale, 30 * scale);
-    ctx.strokeRect(x + 15 * scale, y + 10, 20 * scale, 25 * scale);
+    ctx.strokeRect(x, bodyY, bodyWidth, bodyHeight);
+    ctx.strokeRect(x + (15 * scale), y + (10 * scale), 20 * scale, 25 * scale);
   };
 
   useEffect(() => {
@@ -133,39 +140,19 @@ const GameCanvas = ({ game, projectiles, onSelectAmmunition, onSelectWall }: Gam
       // Draw players as tanks
       if (game.players.length >= 2) {
         // Player 1 (Left side - Blue tank) - at bottom
-        drawTank(ctx, 100, 650, '#3b82f6');
+        drawTank(ctx, 50, 650, '#3b82f6');
 
-        // Draw P1 health bar
-        const p1Health = game.players[0].health;
-        const p1HealthPercent = p1Health / 100;
-        const barWidth = 100;
-        const barHeight = 15;
-        const barX = 100;
-        const barY = 620;
-
-        // Background (red)
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-
-        // Foreground (green, based on health)
-        ctx.fillStyle = p1HealthPercent > 0.5 ? '#22c55e' : p1HealthPercent > 0.25 ? '#eab308' : '#ef4444';
-        ctx.fillRect(barX, barY, barWidth * p1HealthPercent, barHeight);
-
-        // Border
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
-
-        // Health text
+        // Player label above tank
         ctx.fillStyle = 'white';
-        ctx.font = '14px monospace';
+        ctx.font = '24px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`HP: ${p1Health}/100`, barX + barWidth / 2, barY + barHeight + 15);
+        ctx.fillText(`P1`, 107, 640);
 
-        // Player label
-        ctx.font = '20px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText(`P1`, 125, 690);
+        // Damage dealt below tank
+        ctx.font = '28px monospace';
+        ctx.fillStyle = '#fbbf24';
+        ctx.textAlign = 'center';
+        ctx.fillText(`DMG: ${game.players[0].totalDamageDealt}`, 107, 760);
 
         // Draw P1's wall if selected
         if (game.players[0].selectedWallId) {
@@ -174,41 +161,23 @@ const GameCanvas = ({ game, projectiles, onSelectAmmunition, onSelectWall }: Gam
             ctx.font = '60px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(wallDetails.icon, 70, 676);
+            ctx.fillText(wallDetails.icon, 20, 676);
           }
         }
 
         // Player 2 (Right side - Red tank) - at bottom
-        drawTank(ctx, 1450, 650, '#ef4444');
+        drawTank(ctx, 1488, 650, '#ef4444');
 
-        // Draw P2 health bar
-        const p2Health = game.players[1].health;
-        const p2HealthPercent = p2Health / 100;
-        const p2BarX = 1450;
-        const p2BarY = 620;
-
-        // Background (red)
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(p2BarX, p2BarY, barWidth, barHeight);
-
-        // Foreground (green, based on health)
-        ctx.fillStyle = p2HealthPercent > 0.5 ? '#22c55e' : p2HealthPercent > 0.25 ? '#eab308' : '#ef4444';
-        ctx.fillRect(p2BarX, p2BarY, barWidth * p2HealthPercent, barHeight);
-
-        // Border
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(p2BarX, p2BarY, barWidth, barHeight);
-
-        // Health text
+        // Player label above tank
         ctx.fillStyle = 'white';
-        ctx.font = '14px monospace';
+        ctx.font = '24px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`HP: ${p2Health}/100`, p2BarX + barWidth / 2, p2BarY + barHeight + 15);
+        ctx.fillText(`P2`, 1545, 640);
 
-        // Player label
-        ctx.font = '20px monospace';
-        ctx.fillText(`P2`, 1475, 690);
+        // Damage dealt below tank
+        ctx.font = '28px monospace';
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText(`DMG: ${game.players[1].totalDamageDealt}`, 1545, 760);
 
         // Draw P2's wall if selected
         if (game.players[1].selectedWallId) {
@@ -217,7 +186,7 @@ const GameCanvas = ({ game, projectiles, onSelectAmmunition, onSelectWall }: Gam
             ctx.font = '60px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(wallDetails.icon, 1530, 676);
+            ctx.fillText(wallDetails.icon, 1568, 676);
           }
         }
       }

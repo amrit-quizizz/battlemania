@@ -15,6 +15,10 @@ export interface Game {
 export interface GameComponentProps {
   // Any common props that games need
   onGameEnd?: () => void;
+  // Optional initial points for players (defaults to 100)
+  initialPoints?: { P1: number; P2: number };
+  // Hide control panel and show only game canvas
+  hideControls?: boolean;
 }
 
 /**
