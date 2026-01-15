@@ -4,6 +4,8 @@ import JoinGame from './quiz/JoinGame'
 import QuizGame from './quiz/QuizGame'
 import PlayerGame from './quiz/PlayerGame'
 import SideScrollGame from './3d-game/SideScrollGame'
+import AdminDashboard from './admin/AdminDashboard'
+import BattleMode from './admin/BattleMode'
 import './App.css'
 import { getGame, DEFAULT_GAME_ID } from './games/registry'
 
@@ -30,7 +32,9 @@ function BattleManiaRoute() {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/quiz/init" replace />} />
+      <Route path="/" element={<Navigate to="/admin" replace />} />
+      <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/battle-mode" element={<BattleMode />} />
       <Route path="/battlemania" element={<BattleManiaRoute />} />
       <Route path="/game-three-d" element={<SideScrollGame />} />
       <Route path="/quiz/init" element={<StartGame />} />
