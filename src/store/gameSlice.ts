@@ -102,10 +102,13 @@ export const gameSlice = createSlice({
         game.turnHistory.push(turnRecord);
       }
     },
+    resetGame: (state) => {
+      state.currentGameId = null;
+    },
   },
 });
 
-export const { startGame, updateDamage, incrementTurn, endGame, recordTurn } = gameSlice.actions;
+export const { startGame, updateDamage, incrementTurn, endGame, recordTurn, resetGame } = gameSlice.actions;
 
 export const selectGame = (gameId: string) => (state: RootState) =>
   state.game.games[gameId];

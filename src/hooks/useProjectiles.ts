@@ -16,8 +16,8 @@ export interface Projectile {
 }
 
 const PLAYER_POSITIONS = {
-  P1: { x: 80, y: 200 },
-  P2: { x: 720, y: 200 },
+  P1: { x: 198, y: 749 }, // Tank 1 cannon tip (100 + 65 + 33, 725 + 20 + 4) scaled 1.3x
+  P2: { x: 1418, y: 749 }, // Tank 2 cannon tip (1450 - 32, 725 + 20 + 4) scaled 1.3x
 };
 
 export const useProjectiles = () => {
@@ -35,7 +35,7 @@ export const useProjectiles = () => {
         y: fromPos.y,
         targetX: toPos.x,
         targetY: toPos.y,
-        speed: 5,
+        speed: 8,
         damage: dmg.damage,
         fromPlayer: dmg.fromPlayer,
         icon: ammoDetails?.icon || '💥',
@@ -77,8 +77,13 @@ export const useProjectiles = () => {
     return () => clearInterval(interval);
   }, [projectiles.length]);
 
+  const clearProjectiles = useCallback(() => {
+    setProjectiles([]);
+  }, []);
+
   return {
     projectiles: projectiles.filter(p => p.active),
     fireProjectiles,
+    clearProjectiles,
   };
 };
