@@ -22,7 +22,9 @@ function QuizGame() {
   const location = useLocation();
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPopup, setShowPopup] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get game code from location state or try to reconnect
   const gameCode = location.state?.gameCode;
@@ -53,13 +55,61 @@ function QuizGame() {
 
         switch (data.type) {
           case 'game_state':
-            setGameState({
-              gameCode: data.gameCode,
-              teamA: data.teamA || [],
-              teamB: data.teamB || [],
-              scoreA: data.scoreA || 0,
-              scoreB: data.scoreB || 0,
-            });
+            // Check if this is a popup state
+            if (data.state === 'SHOWING_POPUP') {
+              console.log('Admin received SHOWING_POPUP', data);
+              setShowPopup(true);
+
+              // Clear any existing popup timer
+              if (popupTimerRef.current) {
+                clearTimeout(popupTimerRef.current);
+              }
+
+              // Check if this is a game over popup
+              const isGameOver = data.isGameOver || false;
+
+              // Auto-continue after 5 seconds
+              popupTimerRef.current = setTimeout(() => {
+                console.log('Admin popup timer expired');
+                setShowPopup(false);
+
+                if (isGameOver) {
+                  // Send continue signal
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                      type: 'popup_continue',
+                      gameCode: gameCode
+                    }));
+                  }
+                } else {
+                  // Normal turn end, send continue signal
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                      type: 'popup_continue',
+                      gameCode: gameCode
+                    }));
+                  }
+                }
+              }, 5000);
+
+              // Update scores if provided
+              if (data.scoreA !== undefined || data.scoreB !== undefined) {
+                setGameState(prev => prev ? {
+                  ...prev,
+                  scoreA: data.scoreA !== undefined ? data.scoreA : prev.scoreA,
+                  scoreB: data.scoreB !== undefined ? data.scoreB : prev.scoreB,
+                } : null);
+              }
+            } else {
+              // Normal game state update
+              setGameState({
+                gameCode: data.gameCode,
+                teamA: data.teamA || [],
+                teamB: data.teamB || [],
+                scoreA: data.scoreA || 0,
+                scoreB: data.scoreB || 0,
+              });
+            }
             break;
 
           case 'score_update':
@@ -71,7 +121,7 @@ function QuizGame() {
             break;
 
           case 'game_ended':
-            alert('Game has been ended');
+            console.log('Game ended, navigating to start');
             navigate('/quiz/init');
             break;
 
@@ -97,6 +147,9 @@ function QuizGame() {
       if (wsRef.current) {
         wsRef.current.close();
       }
+      if (popupTimerRef.current) {
+        clearTimeout(popupTimerRef.current);
+      }
     };
   }, [gameCode, navigate]);
 
@@ -108,7 +161,8 @@ function QuizGame() {
           gameCode
         }));
       }
-      navigate('/quiz/init');
+      // Don't navigate immediately - wait for server to send game_ended message
+      // The game_ended handler will navigate to /quiz/init
     }
   };
 
@@ -179,6 +233,131 @@ function QuizGame() {
             End Game
           </button>
         </div>
+
+        {/* Popup Panel - Shows during transitions */}
+        {showPopup && (
+          <div className="result-popup-overlay" style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            animation: 'fadeIn 0.3s ease-in-out'
+          }}>
+            <div className="result-popup" style={{
+              minHeight: '400px',
+              minWidth: '600px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'linear-gradient(135deg, #1a2332 0%, #2d3e50 100%)',
+              borderRadius: '24px',
+              padding: '3rem',
+              border: '3px solid #ffd700',
+              boxShadow: '0 0 50px rgba(255, 215, 0, 0.5)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Battlefield background effect */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.02) 20px)',
+                pointerEvents: 'none'
+              }}></div>
+
+              <div className="result-content" style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+                <h2 style={{
+                  fontSize: '2.5rem',
+                  marginBottom: '1rem',
+                  color: '#ffd700',
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  textShadow: '0 0 20px rgba(255, 215, 0, 0.5)',
+                  animation: 'pulse 1s ease-in-out infinite'
+                }}>
+                  ⚔️ BATTLE INTERMISSION ⚔️
+                </h2>
+
+                {/* Tank Battle Animation */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  margin: '3rem 0',
+                  position: 'relative',
+                  height: '100px'
+                }}>
+                  {/* Blue Team Tank */}
+                  <div style={{
+                    fontSize: '4rem',
+                    animation: 'tankMove 2s ease-in-out infinite',
+                    filter: 'drop-shadow(0 0 10px rgba(0, 212, 255, 0.8))'
+                  }}>
+                    🛡️
+                  </div>
+
+                  {/* Explosion in middle */}
+                  <div style={{
+                    fontSize: '3rem',
+                    animation: 'explosion 1s ease-in-out infinite',
+                    position: 'absolute',
+                    left: '50%',
+                    transform: 'translateX(-50%)'
+                  }}>
+                    💥
+                  </div>
+
+                  {/* Red Team Tank */}
+                  <div style={{
+                    fontSize: '4rem',
+                    animation: 'tankMove 2s ease-in-out infinite',
+                    animationDirection: 'reverse',
+                    filter: 'drop-shadow(0 0 10px rgba(255, 68, 68, 0.8))'
+                  }}>
+                    ⚡
+                  </div>
+                </div>
+
+                <p style={{
+                  fontSize: '1.3rem',
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  fontWeight: 600,
+                  marginBottom: '1rem'
+                }}>
+                  Preparing next round...
+                </p>
+
+                {/* Loading bar */}
+                <div style={{
+                  width: '100%',
+                  height: '8px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: '4px',
+                  overflow: 'hidden',
+                  marginTop: '2rem'
+                }}>
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #00d4ff 0%, #ff4444 100%)',
+                    animation: 'pulse 1s ease-in-out infinite'
+                  }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

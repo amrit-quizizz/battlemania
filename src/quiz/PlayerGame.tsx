@@ -185,10 +185,40 @@ function PlayerGame() {
               console.log('State: SHOWING_POPUP', data);
               setShowResult(false);
               setShowPopup(true);
-              setWaitingForOtherPlayer(false); // Reset waiting state when popup appears
-              // Game will handle sending popup_continue when it ends
+
+              // Clear any existing popup timer
+              if (popupTimerRef.current) {
+                clearTimeout(popupTimerRef.current);
+              }
+
+              // Check if this is a game over popup
+              const isGameOver = data.isGameOver || false;
+
+              // Auto-continue after 5 seconds (simulating popup animation/visualization)
+              popupTimerRef.current = setTimeout(() => {
+                console.log('Popup timer expired');
+                setShowPopup(false);
+
+                if (isGameOver) {
+                  // Game is ending, just send continue signal (server will finalize)
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                      type: 'popup_continue',
+                      gameCode: gameCode
+                    }));
+                  }
+                } else {
+                  // Normal turn end, send continue signal
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                      type: 'popup_continue',
+                      gameCode: gameCode
+                    }));
+                  }
+                }
+              }, 5000);
             } else if (data.state === 'GAME_OVER') {
-              // Game over
+              // Game over (old message format, fallback)
               alert(`Game Over! Team A: ${data.finalScoreA}, Team B: ${data.finalScoreB}`);
               navigate('/quiz/join');
             }
@@ -598,96 +628,127 @@ function PlayerGame() {
           )}
         </div>
 
-        {/* Popup Panel - Shows BattleMania Game */}
-        {showPopup && gameState && createPortal(
+        {/* Popup Panel - Shows between turns */}
+        {showPopup && (
           <div className="result-popup-overlay" style={{
-            zIndex: 1000,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
             position: 'fixed',
             top: 0,
             left: 0,
-            width: '100vw',
-            height: '100vh'
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            animation: 'fadeIn 0.3s ease-in-out'
           }}>
-            <div style={{
-              width: '100%',
-              height: '100%',
+            <div className="result-popup" style={{
+              minHeight: '400px',
+              minWidth: '600px',
+              maxWidth: '90vw',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '15px'
+              background: 'linear-gradient(135deg, #1a2332 0%, #2d3e50 100%)',
+              borderRadius: '24px',
+              padding: '3rem',
+              border: '3px solid #ffd700',
+              boxShadow: '0 0 50px rgba(255, 215, 0, 0.5)',
+              position: 'relative',
+              overflow: 'hidden'
             }}>
+              {/* Battlefield background effect */}
               <div style={{
-                width: '50vw',
-                height: '50vh',
-                backgroundColor: '#0a0a0a',
-                borderRadius: '16px',
-                overflow: 'hidden',
-                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)',
-                position: 'relative'
-              }}>
-                <BattleManiaGame
-                  initialPoints={{ P1: gameState.scoreA, P2: gameState.scoreB }}
-                  hideControls={true}
-                  onGameEnd={() => {
-                    console.log('BattleMania game ended, continuing quiz');
-                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                      wsRef.current.send(JSON.stringify({
-                        type: 'popup_continue',
-                        gameCode: gameCode
-                      }));
-                    }
-                  }}
-                />
-                {waitingForOtherPlayer && (
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.02) 20px)',
+                pointerEvents: 'none'
+              }}></div>
+
+              <div className="result-content" style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+                <h2 style={{
+                  fontSize: '2.5rem',
+                  marginBottom: '1rem',
+                  color: '#ffd700',
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  textShadow: '0 0 20px rgba(255, 215, 0, 0.5)',
+                  animation: 'pulse 1s ease-in-out infinite'
+                }}>
+                  ⚔️ BATTLE INTERMISSION ⚔️
+                </h2>
+
+                {/* Tank Battle Animation */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  margin: '3rem 0',
+                  position: 'relative',
+                  height: '100px'
+                }}>
+                  {/* Blue Team Tank */}
                   <div style={{
+                    fontSize: '4rem',
+                    animation: 'tankMove 2s ease-in-out infinite',
+                    filter: 'drop-shadow(0 0 10px rgba(0, 212, 255, 0.8))'
+                  }}>
+                    🛡️
+                  </div>
+
+                  {/* Explosion in middle */}
+                  <div style={{
+                    fontSize: '3rem',
+                    animation: 'explosion 1s ease-in-out infinite',
                     position: 'absolute',
-                    top: 0,
-                    left: 0,
+                    left: '50%',
+                    transform: 'translateX(-50%)'
+                  }}>
+                    💥
+                  </div>
+
+                  {/* Red Team Tank */}
+                  <div style={{
+                    fontSize: '4rem',
+                    animation: 'tankMove 2s ease-in-out infinite',
+                    animationDirection: 'reverse',
+                    filter: 'drop-shadow(0 0 10px rgba(255, 68, 68, 0.8))'
+                  }}>
+                    ⚡
+                  </div>
+                </div>
+
+                <p style={{
+                  fontSize: '1.3rem',
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  fontWeight: 600,
+                  marginBottom: '1rem'
+                }}>
+                  Turn complete! Preparing next round...
+                </p>
+
+                {/* Loading bar */}
+                <div style={{
+                  width: '100%',
+                  height: '8px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: '4px',
+                  overflow: 'hidden',
+                  marginTop: '2rem'
+                }}>
+                  <div style={{
                     width: '100%',
                     height: '100%',
-                    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1001
-                  }}>
-                    <div style={{
-                      fontSize: '32px',
-                      fontWeight: 'bold',
-                      color: '#646cff',
-                      marginBottom: '20px',
-                      textAlign: 'center'
-                    }}>
-                      ⏳ Waiting for Other Player
-                    </div>
-                    <div style={{
-                      fontSize: '18px',
-                      color: '#999',
-                      textAlign: 'center',
-                      maxWidth: '500px'
-                    }}>
-                      Your game has ended. Please wait while the other player finishes their battle...
-                    </div>
-                    <div style={{
-                      marginTop: '30px',
-                      width: '60px',
-                      height: '60px',
-                      border: '4px solid rgba(100, 108, 255, 0.3)',
-                      borderTop: '4px solid #646cff',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
-                    <style>{`
-                      @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                      }
-                    `}</style>
-                  </div>
-                )}
+                    background: 'linear-gradient(90deg, #00d4ff 0%, #ff4444 100%)',
+                    animation: 'pulse 1s ease-in-out infinite'
+                  }}></div>
+                </div>
               </div>
             </div>
           </div>,

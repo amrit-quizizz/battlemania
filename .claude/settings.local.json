@@ -5,7 +5,9 @@
       "Bash(find:*)",
       "Bash(npm run dev:server:*)",
       "Bash(npm run dev:*)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(pkill:*)"
     ]
   }
 }
