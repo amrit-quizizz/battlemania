@@ -115,6 +115,17 @@ export interface BulletConfig {
     nozzleHeightOffset: number
     /** Z-plane for bullet visibility */
     visibleZ: number
+    /** Recoil animation settings */
+    recoil: {
+      /** Scale multiplier when firing (1.3 = 30% larger) */
+      scale: number
+      /** Duration of the recoil bulge in milliseconds */
+      duration: number
+      /** Speed of scale increase (higher = faster bulge) */
+      bulgeSpeed: number
+      /** Speed of scale decrease (higher = faster return) */
+      returnSpeed: number
+    }
   }
 }
 
@@ -159,7 +170,7 @@ export const bulletConfig: BulletConfig = {
     speedMultiplier: 1.1,
     damage: 30,
     spreadAngle: 0.15,
-    cooldown: 800,
+    cooldown: 400,
     turretHitRadius: 3,
     missileScale: 0.07,
     missileRotationP1: [0, Math.PI , 0],
@@ -168,6 +179,12 @@ export const bulletConfig: BulletConfig = {
     startOffset: 1.3,
     endOffset: 1.3,
     nozzleHeightOffset: 1.4,
-    visibleZ: 2.5
+    visibleZ: 2.5,
+    recoil: {
+      scale: 1.08,
+      duration: 120,
+      bulgeSpeed: 12,
+      returnSpeed: 8
+    }
   }
 }

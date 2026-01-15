@@ -486,6 +486,46 @@ function BackgroundBuildings({ roadY }: { roadY: number }) {
   )
 }
 
+// Turret with Recoil Effect Component
+function TurretWithRecoil({
+  position,
+  rotation,
+  isFiring
+}: {
+  position: [number, number, number]
+  rotation: [number, number, number]
+  isFiring: boolean
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+  const scaleRef = useRef(SCALES.turretGun)
+  const baseScale = SCALES.turretGun
+
+  // Get recoil settings from config
+  const { scale: recoilScale, bulgeSpeed, returnSpeed } = bulletConfig.turretFire.recoil
+
+  useFrame((_state, delta) => {
+    if (!groupRef.current) return
+
+    // Calculate target scale based on firing state
+    const targetScale = isFiring ? baseScale * recoilScale : baseScale
+
+    // Smoothly interpolate scale
+    const lerpSpeed = isFiring ? bulgeSpeed : returnSpeed
+    scaleRef.current += (targetScale - scaleRef.current) * lerpSpeed * delta
+
+    // Apply scale to turret group
+    groupRef.current.scale.set(scaleRef.current, scaleRef.current, scaleRef.current)
+  })
+
+  return (
+    <group ref={groupRef} position={position} rotation={rotation} scale={baseScale}>
+      <Suspense fallback={null}>
+        <SafeModel modelPath={MODELS.turretGun} scale={1} />
+      </Suspense>
+    </group>
+  )
+}
+
 // Turret Bullet Component - dedicated component for turret-to-turret fire
 // Larger, more visible, distinct from tank bullets
 function TurretBullet({ position, velocity, targetTurretPos, onHit, owner }: {
@@ -574,6 +614,10 @@ function CleanBattleScene() {
   }>>([])
   const lastTurretFireTime = useRef<{ player1: number, player2: number }>({ player1: 0, player2: 0 })
 
+  // Turret recoil state
+  const [turret1Firing, setTurret1Firing] = useState(false)
+  const [turret2Firing, setTurret2Firing] = useState(false)
+
   // Get turret positions from config
   const turret1Pos: [number, number, number] = [
     environmentConfig.scenePositions.turrets.turret1.offset[0],
@@ -624,6 +668,16 @@ function CleanBattleScene() {
     }
     setTurretBullets(prev => [...prev, ...newBullets])
     playTurretFireSound()
+
+    // Trigger turret recoil animation
+    const recoilDuration = bulletConfig.turretFire.recoil.duration
+    if (player === 'player1') {
+      setTurret1Firing(true)
+      setTimeout(() => setTurret1Firing(false), recoilDuration)
+    } else {
+      setTurret2Firing(true)
+      setTimeout(() => setTurret2Firing(false), recoilDuration)
+    }
   }, [turret1Pos, turret2Pos])
 
   // Handle turret bullet hit
@@ -811,20 +865,20 @@ function CleanBattleScene() {
       {/* ROAD - Built from Road Bits model pattern */}
       <Road roadY={roadY} />
 
-      {/* MILITARY EQUIPMENT - Turret gun, tent, Humvee, truck */}
+      {/* MILITARY EQUIPMENT - Turret guns with recoil effect */}
       {/* Turret Gun 1 - Behind road, rotated to face battlefield */}
-      <group position={[environmentConfig.scenePositions.turrets.turret1.offset[0], roadY + environmentConfig.scenePositions.turrets.turret1.offset[1], environmentConfig.scenePositions.turrets.turret1.offset[2]]} rotation={environmentConfig.scenePositions.turrets.turret1.rotation}>
-        <Suspense fallback={null}>
-          <SafeModel modelPath={MODELS.turretGun} scale={SCALES.turretGun} />
-        </Suspense>
-      </group>
-      
+      <TurretWithRecoil
+        position={[environmentConfig.scenePositions.turrets.turret1.offset[0], roadY + environmentConfig.scenePositions.turrets.turret1.offset[1], environmentConfig.scenePositions.turrets.turret1.offset[2]]}
+        rotation={environmentConfig.scenePositions.turrets.turret1.rotation as [number, number, number]}
+        isFiring={turret1Firing}
+      />
+
       {/* Turret Gun 2 - Behind road, rotated to face battlefield */}
-      <group position={[environmentConfig.scenePositions.turrets.turret2.offset[0], roadY + environmentConfig.scenePositions.turrets.turret2.offset[1], environmentConfig.scenePositions.turrets.turret2.offset[2]]} rotation={environmentConfig.scenePositions.turrets.turret2.rotation}>
-        <Suspense fallback={null}>
-          <SafeModel modelPath={MODELS.turretGun} scale={SCALES.turretGun} />
-        </Suspense>
-      </group>
+      <TurretWithRecoil
+        position={[environmentConfig.scenePositions.turrets.turret2.offset[0], roadY + environmentConfig.scenePositions.turrets.turret2.offset[1], environmentConfig.scenePositions.turrets.turret2.offset[2]]}
+        rotation={environmentConfig.scenePositions.turrets.turret2.rotation as [number, number, number]}
+        isFiring={turret2Firing}
+      />
 
       {/* PLAYER 1 TANK - Left side, facing RIGHT (towards center) */}
       <PlayerTank
