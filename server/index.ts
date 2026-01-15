@@ -1,17 +1,30 @@
+// Load environment variables from .env file
+import 'dotenv/config';
+
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { generateQuizWithRetry, type Question as QuizQuestion } from './quizGenerator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load questions
+// Load default questions (fallback)
 const questionsData = JSON.parse(readFileSync(join(__dirname, 'questions.json'), 'utf-8'));
 
 const PORT = process.env.PORT || 3001;
 const WS_PORT = process.env.WS_PORT || 3002;
+
+// Quiz generation mode: 'mock' or 'ai'
+// Set to 'mock' to use default questions, 'ai' to use Claude AI generation
+const QUIZ_MODE = process.env.QUIZ_MODE || 'mock';
+
+console.log(`Quiz generation mode: ${QUIZ_MODE}`);
+if (QUIZ_MODE === 'ai' && !process.env.ANTHROPIC_API_KEY) {
+  console.warn('⚠️  QUIZ_MODE is set to "ai" but ANTHROPIC_API_KEY is not set. Falling back to mock mode.');
+}
 
 // Game state machine
 enum GameState {
@@ -78,6 +91,10 @@ interface GameSession {
 
   // End game flag
   isEndingGame: boolean;
+
+  // Quiz data
+  quizTopic?: string;
+  questions: QuizQuestion[];
 }
 
 // Store game sessions
@@ -150,8 +167,8 @@ function assignRandomLevel(session: GameSession, playerWs: WebSocket): void {
   playerState.selectedLevel = randomLevel;
   playerState.levelSelectionTimestamp = Date.now();
 
-  // Get random question for that level
-  const levelQuestions = questionsData.questions.filter((q: any) => q.level === randomLevel);
+  // Get random question for that level from session questions (AI or mock)
+  const levelQuestions = session.questions.filter((q: any) => q.difficulty === randomLevel);
   const randomQuestion = levelQuestions[Math.floor(Math.random() * levelQuestions.length)];
   playerState.assignedQuestion = randomQuestion;
 
@@ -475,7 +492,7 @@ function finalizeGameOver(session: GameSession): void {
 wss.on('connection', (ws: WebSocket) => {
   console.log('New WebSocket connection');
 
-  ws.on('message', (message: string) => {
+  ws.on('message', async (message: string) => {
     try {
       const data = JSON.parse(message.toString());
       console.log('Received message:', data);
@@ -483,10 +500,44 @@ wss.on('connection', (ws: WebSocket) => {
       switch (data.type) {
         case 'create_game': {
           // Host creates a new game session
+          const topic = data.topic as string | undefined;
+
           let gameCode: string;
           do {
             gameCode = generateGameCode();
           } while (gameSessions.has(gameCode));
+
+          // Generate quiz questions based on mode
+          let questions: QuizQuestion[] = questionsData; // default to mock questions
+
+          // Only use AI if mode is 'ai', topic is provided, and API key is set
+          if (QUIZ_MODE === 'ai' && topic && topic.trim() && process.env.ANTHROPIC_API_KEY) {
+            try {
+              // Notify host that quiz is being generated
+              ws.send(JSON.stringify({
+                type: 'quiz_generating',
+                topic: topic.trim()
+              }));
+
+              console.log(`[AI MODE] Generating AI quiz for topic: ${topic}`);
+
+              // Generate quiz with AI
+              const quiz = await generateQuizWithRetry(topic.trim(), 3);
+              questions = quiz.questions;
+
+              console.log(`[AI MODE] Successfully generated ${questions.length} questions for topic: ${quiz.topic}`);
+            } catch (error) {
+              console.error('[AI MODE] Error generating quiz:', error);
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Failed to generate AI quiz. Using default questions instead.'
+              }));
+              // Continue with default questions on error
+            }
+          } else {
+            // Mock mode - use default questions
+            console.log(`[MOCK MODE] Using default questions${topic ? ' (topic ignored: ' + topic + ')' : ''}`);
+          }
 
           const session: GameSession = {
             gameCode,
@@ -504,6 +555,8 @@ wss.on('connection', (ws: WebSocket) => {
             currentTurn: 0,
             playerStates: new Map(),
             isEndingGame: false,
+            quizTopic: topic?.trim(),
+            questions: questions,
           };
 
           gameSessions.set(gameCode, session);
@@ -855,8 +908,8 @@ wss.on('connection', (ws: WebSocket) => {
 
           console.log(`Player ${playerState.playerId} selected level ${level} for game ${gameCode}`);
 
-          // Get a random question from the selected level
-          const levelQuestions = questionsData.questions.filter((q: any) => q.level === level);
+          // Get a random question from the selected level (from session questions - AI or mock)
+          const levelQuestions = session.questions.filter((q: any) => q.difficulty === level);
           if (levelQuestions.length === 0) {
             ws.send(JSON.stringify({
               type: 'error',
