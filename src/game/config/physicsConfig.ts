@@ -35,6 +35,9 @@ export interface PhysicsConfig {
   
   /** Random torque impulse range for shake effect (units) */
   shakeTorqueRange: number
+  
+  /** Horizontal impulse applied to hit tank in direction of bullet impact (units) */
+  hitRecoilForce: number
 }
 
 /**
@@ -49,7 +52,8 @@ export const physicsConfig: PhysicsConfig = {
   restitution: 0.1,
   restitutionAlternative: 0.2,
   gravity: [0, -9.81, 0],
-  recoilForce: 0.8,
-  shakeUpwardImpulse: 1.2,
-  shakeTorqueRange: 0.3
+  recoilForce: 1, // Increased from 0.8 for more intense firing recoil
+  shakeUpwardImpulse: 3.5, // Increased from 1.2 for more intense upward hit recoil
+  shakeTorqueRange: 0.3, // Increased from 0.3 for more intense rotation/shake
+  hitRecoilForce: 0 // Horizontal push-back force when enemy tank gets hit
 }

@@ -481,14 +481,21 @@ function CleanBattleScene() {
     }, true)
   }, [])
 
-  // Explosion shake effect: Apply upward impulse and rotation to enemy tank
-  const applyShakeEffect = useCallback((tankRef: React.RefObject<RapierRigidBody | null>) => {
+  // Explosion shake effect: Apply upward impulse, horizontal push-back, and rotation to enemy tank
+  const applyShakeEffect = useCallback((tankRef: React.RefObject<RapierRigidBody | null>, firingDirection: { x: number; y: number }) => {
     if (!tankRef.current) return
     
     // Apply upward impulse to lift tank
     tankRef.current.applyImpulse({
       x: 0,
       y: physicsConfig.shakeUpwardImpulse,
+      z: 0
+    }, true)
+
+    // Apply horizontal push-back in the direction of the bullet (hit recoil)
+    tankRef.current.applyImpulse({
+      x: firingDirection.x * physicsConfig.hitRecoilForce,
+      y: 0,
       z: 0
     }, true)
 
@@ -529,9 +536,9 @@ function CleanBattleScene() {
       applyRecoilEffect(shooterTankRef, hitData.firingDirection)
     }
     
-    // Apply shake to enemy tank
+    // Apply shake to enemy tank (with firing direction for hit recoil)
     if (enemyTankRef) {
-      applyShakeEffect(enemyTankRef)
+      applyShakeEffect(enemyTankRef, hitData.firingDirection)
     }
   }, [applyRecoilEffect, applyShakeEffect])
 
@@ -618,7 +625,7 @@ function CleanBattleScene() {
       {/* PLAYER 1 TANK - Left side, facing RIGHT (towards center) */}
       <PlayerTank
         player="player1"
-        position={[-3, roadY + 2.5, 2.5]}
+        position={[-4.5, roadY + 2.5, 2.5]}
         tankRef={player1TankRef}
         onBulletHit={(hitData) => {
           const ownerTankHandle = player1TankRef.current?.handle
@@ -629,7 +636,7 @@ function CleanBattleScene() {
       {/* PLAYER 2 TANK - Right side, facing LEFT (towards center) */}
       <PlayerTank
         player="player2"
-        position={[3, roadY + 2.5, 2.5]}
+        position={[4.5, roadY + 2.5, 2.5]}
         tankRef={player2TankRef}
         onBulletHit={(hitData) => {
           const ownerTankHandle = player2TankRef.current?.handle
