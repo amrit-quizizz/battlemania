@@ -1,0 +1,107 @@
+.start-game-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.start-game-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 3rem;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.start-game-title {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.start-game-subtitle {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 2rem;
+}
+
+.start-game-button {
+  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+  color: white;
+  border: none;
+  padding: 1rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(100, 108, 255, 0.4);
+}
+
+.start-game-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(100, 108, 255, 0.6);
+}
+
+.start-game-button:active {
+  transform: translateY(0);
+}
+
+.start-game-button.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.start-game-button.secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.game-code-container {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: rgba(100, 108, 255, 0.1);
+  border-radius: 12px;
+  border: 2px solid rgba(100, 108, 255, 0.3);
+}
+
+.game-code {
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: 0.5rem;
+  color: #646cff;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 20px rgba(100, 108, 255, 0.5);
+}
+
+@media (prefers-color-scheme: light) {
+  .start-game-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  .start-game-subtitle {
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .game-code-container {
+    background: rgba(100, 108, 255, 0.05);
+    border: 2px solid rgba(100, 108, 255, 0.2);
+  }
+
+  .start-game-button.secondary {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .start-game-button.secondary:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+}
