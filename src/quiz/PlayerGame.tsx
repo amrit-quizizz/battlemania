@@ -220,7 +220,7 @@ function PlayerGame() {
             } else if (data.state === 'GAME_OVER') {
               // Game over (old message format, fallback)
               alert(`Game Over! Team A: ${data.finalScoreA}, Team B: ${data.finalScoreB}`);
-              navigate('/quiz/join');
+              navigate('/join');
             }
             break;
 
@@ -294,7 +294,7 @@ function PlayerGame() {
 
           case 'game_ended':
             alert(`Game ended! Final Score - Team A: ${data.finalScoreA}, Team B: ${data.finalScoreB}`);
-            navigate('/quiz/join');
+            navigate('/join');
             break;
 
           case 'popup_continue_ack':
@@ -420,7 +420,7 @@ function PlayerGame() {
         <div className="player-game-card">
           <div className="error-message">{error}</div>
           <p style={{ color: 'white', marginTop: '1rem' }}>Debug: gameCode={gameCode}, playerName={playerName}, team={team}</p>
-          <button onClick={() => navigate('/quiz/join')} className="back-button">
+          <button onClick={() => navigate('/join')} className="back-button">
             Back to Join
           </button>
         </div>

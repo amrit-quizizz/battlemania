@@ -1,263 +1,503 @@
-.join-game-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  padding: 2rem;
+/* Join Game Styles - Wayground/Quizizz Design */
+
+.join-page-wrapper {
+  width: 100%;
+  height: 100%;
   position: relative;
   overflow: hidden;
 }
 
-/* Animated battlefield tanks in background */
-.join-game-container::before {
-  content: '🛡️';
-  position: fixed;
-  font-size: 8rem;
-  top: 15%;
-  left: -50px;
-  opacity: 0.1;
-  animation: tankSlideRight 15s linear infinite;
-  filter: drop-shadow(0 0 30px rgba(0, 212, 255, 0.4));
-}
-
-.join-game-container::after {
-  content: '⚡';
-  position: fixed;
-  font-size: 8rem;
-  bottom: 15%;
-  right: -50px;
-  opacity: 0.1;
-  animation: tankSlideLeft 12s linear infinite;
-  filter: drop-shadow(0 0 30px rgba(255, 68, 68, 0.4));
-}
-
-@keyframes tankSlideRight {
-  0% {
-    left: -100px;
-  }
-  100% {
-    left: calc(100% + 100px);
-  }
-}
-
-@keyframes tankSlideLeft {
-  0% {
-    right: -100px;
-  }
-  100% {
-    right: calc(100% + 100px);
-  }
-}
-
-/* Explosion decorations */
-.join-game-card::before {
-  content: '💥';
-  position: absolute;
-  top: -30px;
-  right: -30px;
-  font-size: 4rem;
-  opacity: 0.2;
-  animation: explosion 2s ease-in-out infinite;
-}
-
-.join-game-card::after {
-  content: '⚔️';
-  position: absolute;
-  bottom: -25px;
-  left: -25px;
-  font-size: 3.5rem;
-  opacity: 0.15;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-.join-game-card {
-  background: linear-gradient(135deg, rgba(42, 55, 72, 0.95) 0%, rgba(28, 37, 48, 0.98) 100%);
-  backdrop-filter: blur(15px);
-  border-radius: 24px;
-  padding: 3rem;
-  max-width: 500px;
+.app-content {
+  position: relative;
   width: 100%;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    0 0 0 3px rgba(255, 200, 50, 0.3),
-    inset 0 0 20px rgba(255, 200, 50, 0.05);
-  border: 2px solid rgba(255, 200, 50, 0.4);
-  position: relative;
-  z-index: 1;
-  animation: fadeIn 0.5s ease-out;
+  height: 100vh;
+  min-height: 100vh;
 }
 
-.join-game-title {
-  font-size: 2.8rem;
-  margin-bottom: 0.5rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #ff4500 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
-  text-align: center;
-  animation: pulse 2s ease-in-out infinite;
-  position: relative;
-  z-index: 1;
+/* Background with SVG image */
+.background-gradient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
-.join-game-title::before {
-  content: '🎯 ';
-}
-
-.join-game-subtitle {
-  font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 2rem;
-  text-align: center;
-  font-weight: 600;
-  position: relative;
-  z-index: 1;
-}
-
-.join-form {
+/* Fixed Header - Matching reference structure */
+.fixed-header {
+  position: fixed;
+  width: 100%;
+  height: 56px;
+  left: 0;
+  top: 0;
   display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  position: relative;
-  z-index: 1;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-group label {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #ffd700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.form-input {
-  padding: 1rem 1.25rem;
-  font-size: 1.05rem;
-  border-radius: 12px;
-  border: 2px solid rgba(255, 215, 0, 0.3);
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
+  align-items: center;
+  background: rgba(19, 2, 18, 0.3);
+  backdrop-filter: blur(10px);
+  z-index: 20;
   transition: all 0.3s ease;
-  font-weight: 600;
 }
 
-.form-input:focus {
-  outline: none;
-  border-color: #ffd700;
-  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.2);
-  background: rgba(255, 255, 255, 0.08);
+.landing-header {
+  width: 100%;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-left: 8px;
+  padding-right: 12px;
 }
 
-.form-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.header-left {
+  display: flex;
+  align-items: center;
 }
 
-.form-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
-  font-weight: 400;
+.header-left svg {
+  margin-left: 8px;
 }
 
-.error-message {
-  padding: 1rem 1.25rem;
-  background: rgba(255, 68, 68, 0.2);
-  border: 2px solid rgba(255, 68, 68, 0.5);
-  border-radius: 12px;
-  color: #ff6b6b;
-  font-size: 0.95rem;
-  text-align: center;
-  font-weight: 600;
-  animation: shake 0.5s ease-in-out;
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.join-button {
-  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
-  color: #1a2332;
+.avatar-button {
+  overflow: hidden;
+  height: 56px;
+  padding-right: 8px;
+  cursor: pointer;
+  background: transparent;
   border: none;
-  padding: 1.2rem 2.5rem;
-  font-size: 1.2rem;
-  font-weight: 900;
-  border-radius: 16px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.avatar-button:hover {
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow:
-    0 6px 20px rgba(255, 215, 0, 0.5),
-    0 0 0 3px rgba(255, 215, 0, 0.3);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
 }
 
-.join-button::before {
-  content: '⚔️ ';
+.avatar-button:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.3);
+  outline-offset: 2px;
 }
 
-.join-button::after {
-  content: ' ⚔️';
+.avatar-wrapper {
+  transition: all 0.2s ease;
 }
 
-.join-button:hover:not(:disabled) {
-  transform: translateY(-3px) scale(1.05);
-  box-shadow:
-    0 8px 25px rgba(255, 215, 0, 0.7),
-    0 0 0 3px rgba(255, 215, 0, 0.5);
+.avatar-inner {
+  height: 100%;
+  width: 100%;
 }
 
-.join-button:active:not(:disabled) {
-  transform: translateY(0) scale(1);
+.avatar-relative {
+  position: relative;
 }
 
-.join-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
+.avatar-accessory {
+  transition: all 0.2s ease;
+  object-fit: contain;
 }
 
-.back-button {
-  background: rgba(255, 200, 50, 0.2);
-  color: #ffd700;
-  border: 2px solid rgba(255, 200, 50, 0.4);
-  padding: 0.9rem 2.5rem;
-  font-size: 1rem;
+.header-nav-button {
+  box-sizing: border-box;
+  user-select: none;
   font-weight: 700;
-  border-radius: 12px;
+  border: 1px solid transparent;
+  text-align: center;
+  text-transform: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-color: transparent;
+  color: rgba(255, 255, 255, 1);
+  padding: 8px 16px;
+  font-size: 15px;
+  width: fit-content;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 40px;
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  transition: all 0.2s ease;
+  letter-spacing: 0.01em;
+}
+
+.header-nav-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.header-nav-button:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.header-nav-button:disabled {
+  cursor: auto;
+  color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.header-nav-button:disabled:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.button-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.button-text {
+  min-width: 30px;
+  width: 100%;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Main container */
+.main-container {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 0 20px;
+  padding-top: 56px; /* Account for fixed header */
+}
+
+/* Logo */
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 40px;
+  margin-bottom: 32px;
+}
+
+.main-logo-image {
+  width: 400px;
+  height: auto;
+  max-width: 90vw;
+  transform: translateY(5px);
+}
+
+/* Join Form Container */
+.join-form-container {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.join-form-wrapper {
+  width: 100%;
+  display: flex;
+  gap: 0;
+  background: white;
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
+.join-input {
+  flex: 1;
+  padding: 14px 18px;
+  font-size: 16px;
+  border: none;
+  background: transparent;
+  color: #1a1a1a;
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  outline: none;
   letter-spacing: 0.05em;
 }
 
-.back-button:hover:not(:disabled) {
-  background: rgba(255, 200, 50, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 200, 50, 0.4);
+.join-input::placeholder {
+  color: #9ca3af;
+  letter-spacing: normal;
 }
 
-.back-button:disabled {
+.join-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.join-button-inline {
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  background: #9333ea;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.join-button-inline:hover:not(:disabled) {
+  background: #7c3aed;
+}
+
+.join-button-inline:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
+/* Room info */
+.room-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.room-code-badge {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Quicksand', monospace;
+  letter-spacing: 0.1em;
+}
+
+.room-topic {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Back link */
+.back-link {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  cursor: pointer;
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  margin-top: 8px;
+  transition: color 0.2s ease;
+}
+
+.back-link:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Waiting state */
+.waiting-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 40px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.waiting-icon {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.rotating-circle {
+  animation: rotate 10s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+.waiting-text {
+  text-align: center;
+}
+
+.waiting-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 8px;
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.waiting-subtitle {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.waiting-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.waiting-player-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.waiting-room-code {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'Quicksand', monospace;
+  letter-spacing: 0.05em;
+}
+
+/* Mascot */
+.mascot-container {
+  position: fixed;
+  right: 10%;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.mascot {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Spinner */
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Footer Wrapper - Matching reference structure */
+.footer-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  bottom: 0;
+  margin-top: auto;
+  z-index: 10;
+}
+
+.footer {
+  position: relative;
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  flex-direction: column;
+  gap: 12px;
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+@media (min-width: 768px) {
+  .footer {
+    flex-direction: row;
+    justify-content: center;
+    gap: 24px;
+  }
+}
+
+.footer-link {
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.footer-link:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.footer-copyright {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-  .join-game-card {
-    padding: 2.5rem 2rem;
+  .logo-text {
+    font-size: 36px;
   }
 
-  .join-game-title {
-    font-size: 2.2rem;
+  .logo-icon svg {
+    width: 36px;
+    height: 36px;
   }
 
-  .join-game-container::before,
-  .join-game-container::after {
-    font-size: 5rem;
+  .mascot-container {
+    display: none;
+  }
+
+  .join-form-wrapper {
+    flex-direction: column;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .join-input {
+    background: white;
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+
+  .join-button-inline {
+    width: 100%;
+    justify-content: center;
+    border-radius: 8px;
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-text {
+    font-size: 28px;
+  }
+
+  .logo-container {
+    margin-top: 40px;
   }
 }

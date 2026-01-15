@@ -6,6 +6,7 @@ import PlayerGame from './quiz/PlayerGame'
 import SideScrollGame from './3d-game/SideScrollGame'
 import AdminDashboard from './admin/AdminDashboard'
 import BattleMode from './admin/BattleMode'
+import { ToastProvider } from './components/Toast'
 import './App.css'
 import { getGame, DEFAULT_GAME_ID } from './games/registry'
 
@@ -31,17 +32,19 @@ function BattleManiaRoute() {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/admin" replace />} />
-      <Route path="/admin" element={<AdminDashboard />} />
-      <Route path="/battle-mode" element={<BattleMode />} />
-      <Route path="/battlemania" element={<BattleManiaRoute />} />
-      <Route path="/game-three-d" element={<SideScrollGame />} />
-      <Route path="/quiz/init" element={<StartGame />} />
-      <Route path="/quiz/join" element={<JoinGame />} />
-      <Route path="/quiz/game" element={<QuizGame />} />
-      <Route path="/quiz/player-game" element={<PlayerGame />} />
-    </Routes>
+    <ToastProvider>
+      <Routes>
+        <Route path="/" element={<Navigate to="/admin" replace />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/join" element={<JoinGame />} />
+        <Route path="/battle-mode" element={<BattleMode />} />
+        <Route path="/battlemania" element={<BattleManiaRoute />} />
+        <Route path="/game-three-d" element={<SideScrollGame />} />
+        <Route path="/quiz/init" element={<StartGame />} />
+        <Route path="/quiz/game" element={<QuizGame />} />
+        <Route path="/quiz/player-game" element={<PlayerGame />} />
+      </Routes>
+    </ToastProvider>
   )
 }
 

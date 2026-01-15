@@ -11,7 +11,9 @@
       "Bash(source ~/.nvm/nvm.sh)",
       "Bash(nvm use:*)",
       "Bash(node --version:*)",
-      "WebFetch(domain:wayground.com)"
+      "WebFetch(domain:wayground.com)",
+      "Bash(git log:*)",
+      "Bash(git ls-tree:*)"
     ]
   }
 }

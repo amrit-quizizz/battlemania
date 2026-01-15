@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
+import { useToast } from '../components/Toast'
 import {
   COLORS,
   FONT_SIZES,
@@ -17,19 +18,39 @@ import {
   GRADE_LEVELS,
 } from '../config/design'
 
-// WebSocket URL
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3002'
+// API URL (WebSocket is on same port)
+const API_URL = import.meta.env.VITE_QUIZ_API_URL || 'http://localhost:3001'
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
+
+interface Question {
+  id: number
+  difficulty: 'easy' | 'medium' | 'hard'
+  question: string
+  options: string[]
+  correctAnswer: number
+}
+
+interface QuizResponse {
+  topic: string
+  subject: string
+  gradeLevel: string
+  totalQuestions: number
+  questions: Question[]
+  roomCode: string
+}
 
 interface Player {
   id: string
   name: string
+  score?: number
 }
 
 type ViewState = 'form' | 'creating' | 'lobby'
 
 export default function BattleMode() {
   const navigate = useNavigate()
-  
+  const { showToast } = useToast()
+
   // Debug log
   useEffect(() => {
     console.log('BattleMode component mounted')
@@ -51,8 +72,9 @@ export default function BattleMode() {
   const [gameCode, setGameCode] = useState<string | null>(null)
   const [teamA, setTeamA] = useState<Player[]>([])
   const [teamB, setTeamB] = useState<Player[]>([])
-  const [error, setError] = useState<string | null>(null)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([])
+  const [generationStatus, setGenerationStatus] = useState<string>('')
   
   // WebSocket ref
   const wsRef = useRef<WebSocket | null>(null)
@@ -66,16 +88,71 @@ export default function BattleMode() {
     }
   }, [])
 
-  const handleCreateQuiz = () => {
+  // Connect to WebSocket as host
+  const connectAsHost = (roomCode: string) => {
+    const ws = new WebSocket(WS_URL)
+    wsRef.current = ws
+
+    const connectionTimeout = setTimeout(() => {
+      if (ws.readyState === WebSocket.CONNECTING) {
+        ws.close()
+        showToast('Connection timeout. Make sure the server is running.', 'error')
+      }
+    }, 5000)
+
+    ws.onopen = () => {
+      clearTimeout(connectionTimeout)
+      // Join as host
+      ws.send(JSON.stringify({
+        type: 'host_join',
+        roomCode,
+      }))
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        console.log('WS message:', data.type)
+
+        switch (data.type) {
+          case 'host_joined':
+            // Host successfully joined - we're already in lobby
+            break
+
+          case 'room_update':
+            setTeamA(data.teamA || [])
+            setTeamB(data.teamB || [])
+            break
+
+          case 'error':
+            showToast(data.message, 'error')
+            break
+        }
+      } catch (err) {
+        console.error('Error parsing message:', err)
+      }
+    }
+
+    ws.onerror = () => {
+      clearTimeout(connectionTimeout)
+      showToast('Failed to connect to game server.', 'error')
+    }
+
+    ws.onclose = () => {
+      clearTimeout(connectionTimeout)
+    }
+  }
+
+  const handleCreateQuiz = async () => {
     if (!subject || !topic || !gradeLevel) {
-      setError('Please fill in all required fields')
+      showToast('Please fill in all required fields', 'error')
       return
     }
 
-    setError(null)
     setIsAnimating(true)
     setViewState('creating')
     setIsConnecting(true)
+    setGenerationStatus('Generating quiz questions with AI...')
 
     // Close existing connection if any
     if (wsRef.current) {
@@ -84,91 +161,53 @@ export default function BattleMode() {
     }
 
     try {
-      const ws = new WebSocket(WS_URL)
-      wsRef.current = ws
+      // Step 1: Generate quiz via API (this also creates the room)
+      const quizResponse = await fetch(`${API_URL}/api/generate-quiz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject,
+          gradeLevel,
+          numberOfQuestions: parseInt(numberOfQuestions),
+          topic,
+          additionalDetails: additionalDetails || undefined,
+        }),
+      })
 
-      const connectionTimeout = setTimeout(() => {
-        if (ws.readyState === WebSocket.CONNECTING) {
-          ws.close()
-          setError('Connection timeout. Make sure the server is running.')
-          setIsConnecting(false)
-          setViewState('form')
-          setIsAnimating(false)
-        }
-      }, 5000)
-
-      ws.onopen = () => {
-        clearTimeout(connectionTimeout)
-        setIsConnecting(false)
-        ws.send(JSON.stringify({ type: 'create_game' }))
+      if (!quizResponse.ok) {
+        const errorData = await quizResponse.json().catch(() => ({}))
+        throw new Error(errorData.message || 'Failed to generate quiz')
       }
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
+      const quizData: QuizResponse = await quizResponse.json()
+      setGeneratedQuestions(quizData.questions)
+      setGameCode(quizData.roomCode)
+      setGenerationStatus('')
+      setIsConnecting(false)
 
-          switch (data.type) {
-            case 'game_created':
-              setGameCode(data.gameCode)
-              setTeamA([])
-              setTeamB([])
-              setError(null)
-              setTimeout(() => {
-                setViewState('lobby')
-                setIsAnimating(false)
-              }, 500)
-              break
+      // Step 2: Move to lobby and connect as host
+      setViewState('lobby')
+      setIsAnimating(false)
 
-            case 'game_state':
-              setTeamA(data.teamA || [])
-              setTeamB(data.teamB || [])
-              break
+      // Connect to WebSocket as host for real-time updates
+      connectAsHost(quizData.roomCode)
 
-            case 'error':
-              setError(data.message)
-              setIsConnecting(false)
-              break
-          }
-        } catch (err) {
-          console.error('Error parsing message:', err)
-        }
-      }
-
-      ws.onerror = () => {
-        clearTimeout(connectionTimeout)
-        setError('Failed to connect to server. Make sure the server is running.')
-        setIsConnecting(false)
-        setViewState('form')
-        setIsAnimating(false)
-      }
-
-      ws.onclose = (event) => {
-        clearTimeout(connectionTimeout)
-        setIsConnecting(false)
-        if (event.code !== 1000 && !gameCode) {
-          setError('Connection closed. Please try again.')
-          setViewState('form')
-          setIsAnimating(false)
-        }
-      }
     } catch (err) {
-      console.error('Error creating WebSocket:', err)
-      setError('Failed to create connection.')
+      console.error('Error creating quiz:', err)
+      showToast(err instanceof Error ? err.message : 'Failed to generate quiz. Please try again.', 'error')
       setIsConnecting(false)
       setViewState('form')
       setIsAnimating(false)
+      setGenerationStatus('')
     }
   }
 
-  const canStartGame = teamA.length >= 1 && teamB.length >= 1
+  const canStartGame = teamA.length >= 1 || teamB.length >= 1
 
   const handleStartGame = () => {
-    if (canStartGame && gameCode && wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'start_game',
-        gameCode
-      }))
-      navigate('/quiz/game', { state: { gameCode } })
+    if (gameCode && wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'start_game' }))
+      navigate('/quiz/game', { state: { gameCode, questions: generatedQuestions } })
     }
   }
 
@@ -337,24 +376,6 @@ export default function BattleMode() {
               margin: '0 auto',
             }}
           >
-            {/* Error Message */}
-            {error && (
-              <div
-                style={{
-                  padding: SPACING[3],
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: BORDER_RADIUS.md,
-                  color: 'rgb(239, 68, 68)',
-                  fontSize: FONT_SIZES.sm,
-                  marginBottom: SPACING[4],
-                  textAlign: 'center',
-                }}
-              >
-                {error}
-              </div>
-            )}
-
             {/* Upload Section */}
             <div
               style={{
@@ -477,7 +498,7 @@ export default function BattleMode() {
                   onChange={(e) => setNumberOfQuestions(e.target.value)}
                   style={selectStyle}
                 >
-                  {[5, 10, 15, 20, 25, 30].map((n) => (
+                  {[3, 5, 10, 15, 20, 25, 30].map((n) => (
                     <option key={n} value={n}>{n} questions</option>
                   ))}
                 </select>
@@ -553,18 +574,23 @@ export default function BattleMode() {
               gap: SPACING[4],
             }}
           >
-            <Icon 
-              icon="mdi:loading" 
-              style={{ 
-                width: '48px', 
-                height: '48px', 
+            <Icon
+              icon="mdi:loading"
+              style={{
+                width: '48px',
+                height: '48px',
                 color: COLORS.magenta,
                 animation: 'spin 1s linear infinite',
-              }} 
+              }}
             />
             <p style={{ fontSize: FONT_SIZES.md, color: COLORS.highlightedText }}>
-              Creating your battle...
+              {generationStatus || 'Creating your battle...'}
             </p>
+            {generatedQuestions.length > 0 && (
+              <p style={{ fontSize: FONT_SIZES.sm, color: COLORS.baseText }}>
+                {generatedQuestions.length} questions generated
+              </p>
+            )}
           </div>
         )}
 
@@ -576,6 +602,33 @@ export default function BattleMode() {
               margin: '0 auto',
             }}
           >
+            {/* Quiz Summary */}
+            {generatedQuestions.length > 0 && (
+              <div
+                style={{
+                  backgroundColor: 'rgb(240, 253, 244)',
+                  border: '1px solid rgb(34, 197, 94)',
+                  borderRadius: BORDER_RADIUS.lg,
+                  padding: SPACING[4],
+                  marginBottom: SPACING[4],
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: SPACING[4],
+                }}
+              >
+                <Icon icon="mdi:check-circle" style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg, color: 'rgb(34, 197, 94)' }} />
+                <div style={{ textAlign: 'left' }}>
+                  <p style={{ fontSize: FONT_SIZES.sm, fontWeight: FONT_WEIGHTS.medium, color: COLORS.highlightedText, margin: 0 }}>
+                    {subject} - {topic}
+                  </p>
+                  <p style={{ fontSize: FONT_SIZES.xs, color: COLORS.baseText, margin: 0 }}>
+                    {generatedQuestions.length} questions ({numberOfQuestions} easy, {numberOfQuestions} medium, {numberOfQuestions} hard)
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Game Code Display */}
             <div
               style={{
@@ -587,9 +640,9 @@ export default function BattleMode() {
                 marginBottom: SPACING[8],
               }}
             >
-              <p style={{ 
-                fontSize: FONT_SIZES.sm, 
-                color: COLORS.baseText, 
+              <p style={{
+                fontSize: FONT_SIZES.sm,
+                color: COLORS.baseText,
                 margin: `0 0 ${SPACING[2]} 0`,
                 textTransform: 'uppercase',
                 letterSpacing: '0.1em',
@@ -607,9 +660,9 @@ export default function BattleMode() {
               >
                 {gameCode}
               </div>
-              <p style={{ 
-                fontSize: FONT_SIZES.xs, 
-                color: COLORS.baseText, 
+              <p style={{
+                fontSize: FONT_SIZES.xs,
+                color: COLORS.baseText,
                 margin: `${SPACING[3]} 0 0 0`,
               }}>
                 Students can join at <strong>quizizz.com/join</strong>

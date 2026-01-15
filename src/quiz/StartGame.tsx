@@ -169,7 +169,7 @@ function StartGame() {
             >
               {isConnecting ? 'Connecting...' : 'Start Game'}
             </button>
-            <a href="/quiz/join" className="join-link">
+            <a href="/join" className="join-link">
               Or join an existing game
             </a>
           </>
