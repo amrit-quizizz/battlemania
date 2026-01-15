@@ -83,6 +83,122 @@ export interface UIConfig {
       player1: string
       player2: string
     }
+    /** Model path for the cutting board background */
+    modelPath: string
+    /** Board 3D model settings */
+    board: {
+      /** Scale for the 3D model [x, y, z] */
+      scale: [number, number, number]
+      /** Rotation for the 3D model [x, y, z] in radians */
+      rotation: [number, number, number]
+      /** Position offset [x, y, z] */
+      position: [number, number, number]
+    }
+    /** Fallback board settings when model fails to load */
+    fallback: {
+      /** Geometry dimensions [width, height, depth] */
+      geometry: [number, number, number]
+      /** Material color */
+      color: string
+      /** Material roughness */
+      roughness: number
+      /** Material metalness */
+      metalness: number
+    }
+    /** Animation settings */
+    animation: {
+      /** Floating animation speed */
+      speed: number
+      /** Floating animation amplitude */
+      amplitude: number
+    }
+    /** Text Z offset (distance from board surface) */
+    textZOffset: number
+    /** Google Font URL for text rendering */
+    fontUrl: string
+    /** Player name text settings */
+    playerName: {
+      /** Y position offset */
+      yOffset: number
+      /** Font size */
+      fontSize: number
+      /** Outline width */
+      outlineWidth: number
+      /** Outline color */
+      outlineColor: string
+    }
+    /** Score text settings */
+    score: {
+      /** Show score */
+      show: boolean
+      /** X position offset */
+      xOffset: number
+      /** Y position offset */
+      yOffset: number
+      /** Font size */
+      fontSize: number
+      /** Text color */
+      color: string
+      /** Outline width */
+      outlineWidth: number
+      /** Outline color */
+      outlineColor: string
+    }
+    /** Health bar settings */
+    healthBar: {
+      /** X position offset */
+      xOffset: number
+      /** Y position offset */
+      yOffset: number
+      /** Bar width */
+      width: number
+      /** Bar height */
+      height: number
+      /** Bar depth */
+      depth: number
+      /** Padding inside border */
+      padding: number
+      /** Background color */
+      backgroundColor: string
+      /** Border color */
+      borderColor: string
+      /** Border width */
+      borderWidth: number
+      /** Health colors based on percentage thresholds */
+      colors: {
+        high: string
+        medium: string
+        low: string
+      }
+      /** Label settings */
+      label: {
+        /** Show HP label */
+        show: boolean
+        /** Font size */
+        fontSize: number
+        /** Color */
+        color: string
+        /** Outline width */
+        outlineWidth: number
+        /** Outline color */
+        outlineColor: string
+      }
+    }
+    /** Trophy indicator settings */
+    trophy: {
+      /** Show trophy */
+      show: boolean
+      /** X position offset */
+      xOffset: number
+      /** Y position offset */
+      yOffset: number
+      /** Font size */
+      fontSize: number
+      /** Color */
+      color: string
+      /** Trophy emoji/symbol */
+      symbol: string
+    }
   }
 }
 
@@ -127,12 +243,80 @@ export const uiConfig: UIConfig = {
     container: '#87CEEB'
   },
   scoreCard3D: {
-    player1Position: [-6, 3, 2],
-    player2Position: [6, 3, 2],
-    scale: 0.5,
+    player1Position: [-5, 0, 2],
+    player2Position: [5, 0, 2],
+    scale: 0.8,
     teamNames: {
       player1: 'TEAM A',
       player2: 'TEAM B'
+    },
+    modelPath: '/src/3d-game/assets/3d models/environment/Cutting Board.glb',
+    board: {
+      scale: [4, 4, 4],
+      rotation: [Math.PI/2, Math.PI/2, 0],
+      position: [0, 0, 0]
+    },
+    fallback: {
+      geometry: [3.5, 2.2, 0.15],
+      color: '#c4956a',
+      roughness: 0.8,
+      metalness: 0.1
+    },
+    animation: {
+      speed: 0.8,
+      amplitude: 0.04
+    },
+    textZOffset: 0.3,
+    /** Use empty string for default font (no external loading) */
+    fontUrl: '',
+    playerName: {
+      yOffset: 0.35,
+      fontSize: 0.32,
+      outlineWidth: 0.025,
+      outlineColor: '#000000'
+    },
+    /** Score display - hidden */
+    score: {
+      show: false,
+      xOffset: 0,
+      yOffset: 0,
+      fontSize: 0.55,
+      color: '#ffffff',
+      outlineWidth: 0.03,
+      outlineColor: '#000000'
+    },
+    /** Health bar - full width with padding */
+    healthBar: {
+      xOffset: 0,
+      yOffset: -0.25,
+      width: 1.8,
+      height: 0.3,
+      depth: 0.08,
+      padding: 0.15,
+      backgroundColor: '#2a2a2a',
+      borderColor: '#000000',
+      borderWidth: 0.04,
+      colors: {
+        high: '#22c55e',
+        medium: '#eab308',
+        low: '#dc2626'
+      },
+      label: {
+        show: false,
+        fontSize: 0.14,
+        color: '#ffffff',
+        outlineWidth: 0.015,
+        outlineColor: '#000000'
+      }
+    },
+    /** Trophy indicator - hidden */
+    trophy: {
+      show: false,
+      xOffset: -1.0,
+      yOffset: 0.35,
+      fontSize: 0.28,
+      color: '#fbbf24',
+      symbol: '★'
     }
   }
 }
