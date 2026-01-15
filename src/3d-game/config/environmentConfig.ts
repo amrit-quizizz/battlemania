@@ -278,8 +278,8 @@ export const environmentConfig: EnvironmentConfig = {
       rotation: [0, 0, 0]
     },
     turrets: {
-      turret1: { offset: [-2, 0.5, -4], rotation: [0, Math.PI / 2, 0] },
-      turret2: { offset: [2, 0.5, 6], rotation: [0, -Math.PI / 2, 0] }
+      turret1: { offset: [-3.5, 0.5, -3.2], rotation: [0, Math.PI / 2, 0] },
+      turret2: { offset: [3.5, 0.5, 5.3], rotation: [0, -Math.PI / 2, 0] }
     },
     tanks: {
       player1: { offset: [-4.5, 2.5, 2.5] },

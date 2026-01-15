@@ -155,7 +155,7 @@ export const modelScalesConfig: ModelScalesConfig = {
     castle: 1.8,
     barracks: 1.2,
     fortress: 1.5,
-    turretGun: 2.5,
+    turretGun: 2.2,
     stadiumSeats: 0.27,
     alternatives: {
       small: 0.5,
@@ -187,5 +187,5 @@ export const modelScalesConfig: ModelScalesConfig = {
     large: 1.5
   },
   billboard: 0.5,
-  tankBattleMultiplier: 2.4
+  tankBattleMultiplier: 2.5
 }

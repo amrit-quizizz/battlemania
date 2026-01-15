@@ -29,7 +29,7 @@ Object.values(MODELS).forEach(path => {
 
 // Better scale constants
 const SCALES = {
-  tank: 0.4,           // Main focus
+  tank: 0.5,           // Main focus
   soldier: 0.15,       // Very small humans
   buildings: {
     small: 0.5,
