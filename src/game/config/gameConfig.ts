@@ -15,6 +15,7 @@ import { modelScalesConfig, type ModelScalesConfig } from './modelScalesConfig'
 import { uiConfig, type UIConfig } from './uiConfig'
 import { animationConfig, type AnimationConfig } from './animationConfig'
 import { visualEffectsConfig, type VisualEffectsConfig } from './visualEffectsConfig'
+import { spectatorConfig, type SpectatorConfig } from './spectatorConfig'
 
 /**
  * Complete game configuration interface
@@ -30,6 +31,7 @@ export interface GameConfig {
   ui: UIConfig
   animation: AnimationConfig
   visualEffects: VisualEffectsConfig
+  spectator: SpectatorConfig
 }
 
 /**
@@ -63,7 +65,8 @@ export const gameConfig: GameConfig = {
   modelScales: modelScalesConfig,
   ui: uiConfig,
   animation: animationConfig,
-  visualEffects: visualEffectsConfig
+  visualEffects: visualEffectsConfig,
+  spectator: spectatorConfig
 }
 
 /**
@@ -100,7 +103,8 @@ export {
   modelScalesConfig,
   uiConfig,
   animationConfig,
-  visualEffectsConfig
+  visualEffectsConfig,
+  spectatorConfig
 }
 
 // Export types
@@ -114,5 +118,6 @@ export type {
   ModelScalesConfig,
   UIConfig,
   AnimationConfig,
-  VisualEffectsConfig
+  VisualEffectsConfig,
+  SpectatorConfig
 }

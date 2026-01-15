@@ -12,9 +12,8 @@ import {
   animationConfig,
   visualEffectsConfig
 } from '../config/gameConfig'
+import { StadiumWithSpectators } from './StadiumWithSpectators'
 import * as THREE from 'three'
-import SmokeEffect from './SmokeEffect'
-import ExplosionEffect from './ExplosionEffect'
 
 // Model paths - using models from public/models
 const MODELS = {
@@ -35,7 +34,8 @@ const MODELS = {
   castle: '/models/Castle.glb',
   barracks: '/models/Barracks.glb',
   fortress: '/models/Fortress.glb',
-  bullet: '/src/game/assets/3d models/all-models/Bullet.glb'
+  bullet: '/src/game/assets/3d models/all-models/Bullet.glb',
+  stadiumSeats: '/src/game/assets/3d models/environment/Stadium Seats.glb'
 }
 
 // Preload models
@@ -64,7 +64,8 @@ const SCALES = {
   castle: modelScalesConfig.buildings.castle,
   barracks: modelScalesConfig.buildings.barracks,
   fortress: modelScalesConfig.buildings.fortress,
-  bullet: modelScalesConfig.bullet.standard
+  bullet: modelScalesConfig.bullet.standard,
+  stadiumSeats: modelScalesConfig.buildings.stadiumSeats
 }
 
 // Safe model loader with better error handling
@@ -104,7 +105,6 @@ function SafeModel({ modelPath, scale = 1 }: { modelPath: string, scale?: number
 interface BulletHitData {
   hitTankHandle: number | undefined
   firingDirection: { x: number; y: number }
-  hitPosition?: [number, number, number]
 }
 
 // Bullet Component
@@ -126,8 +126,7 @@ function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }:
     // Remove bullet if it goes off screen
     if (Math.abs(pos.x) > bulletConfig.boundaryLimits.sideScroll.x || Math.abs(pos.y) > bulletConfig.boundaryLimits.sideScroll.y) {
       setActive(false)
-      const hitPosition: [number, number, number] = [pos.x, pos.y, pos.z]
-      onHit?.({ hitTankHandle: undefined, firingDirection, hitPosition })
+      onHit?.({ hitTankHandle: undefined, firingDirection })
     }
   })
 
@@ -145,13 +144,8 @@ function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }:
         if (ownerTankHandle !== undefined && otherHandle === ownerTankHandle) {
           return
         }
-        // Capture bullet position at collision
-        const bulletPos = bulletRef.current?.translation()
-        const hitPosition: [number, number, number] | undefined = bulletPos
-          ? [bulletPos.x, bulletPos.y, bulletPos.z]
-          : undefined
         setActive(false)
-        onHit?.({ hitTankHandle: otherHandle, firingDirection, hitPosition })
+        onHit?.({ hitTankHandle: otherHandle, firingDirection })
       }}
     >
       <Suspense fallback={
@@ -181,7 +175,6 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
   const tankGroupRef = useRef<THREE.Group>(null)
   const keysPressed = useRef<Set<string>>(new Set())
   const [bullets, setBullets] = useState<Array<{ id: number, position: [number, number, number], velocity: { x: number, y: number }, ownerTankHandle?: number, firingDirection: { x: number; y: number } }>>([])
-  const [smokeEffects, setSmokeEffects] = useState<Array<{ id: number, position: [number, number, number], firingDirection: { x: number; y: number } }>>([])
   const lastFireTime = useRef<number>(0)
   const fireCooldown = bulletConfig.fireCooldown
 
@@ -201,17 +194,13 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
     const bulletOffset = direction * bulletConfig.forwardOffset
     const tankHandle = tankRef.current.handle
     const firingDirection = { x: direction, y: 0 }
-    
-    // Bullet spawn position (same as smoke position)
-    const spawnPosition: [number, number, number] = [
-      tankPos.x + bulletOffset, // Offset forward from tank
-      tankPos.y + bulletConfig.verticalOffset, // Offset upward for cannon height
-      tankPos.z
-    ]
-    
     const newBullet = {
       id: Date.now() + Math.random(), // Ensure unique ID
-      position: spawnPosition,
+      position: [
+        tankPos.x + bulletOffset, // Offset forward from tank
+        tankPos.y + bulletConfig.verticalOffset, // Offset upward for cannon height
+        tankPos.z
+      ] as [number, number, number],
       velocity: { 
         x: direction * bulletConfig.speedSideScroll, // Fire speed
         y: 0 
@@ -220,18 +209,6 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
       firingDirection
     }
     setBullets(prev => [...prev, newBullet])
-    
-    // Spawn smoke effect at nozzle position
-    // Limit concurrent smoke effects for performance
-    const maxSmoke = visualEffectsConfig.smoke.maxConcurrent
-    setSmokeEffects(prev => {
-      const filtered = prev.length >= maxSmoke ? prev.slice(1) : prev
-      return [...filtered, {
-        id: Date.now() + Math.random(),
-        position: spawnPosition,
-        firingDirection
-      }]
-    })
   }, [player, tankRef])
 
   useEffect(() => {
@@ -340,18 +317,6 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
           onHit={(hitData) => {
             setBullets(prev => prev.filter(b => b.id !== bullet.id))
             onBulletHit?.(hitData)
-          }}
-        />
-      ))}
-
-      {/* Render smoke effects */}
-      {smokeEffects.map(smoke => (
-        <SmokeEffect
-          key={smoke.id}
-          position={smoke.position}
-          firingDirection={smoke.firingDirection}
-          onComplete={() => {
-            setSmokeEffects(prev => prev.filter(s => s.id !== smoke.id))
           }}
         />
       ))}
@@ -468,6 +433,15 @@ function BackgroundBuildings({ roadY }: { roadY: number }) {
         </Suspense>
       </group>
 
+      {/* Stadium with Spectators */}
+      <StadiumWithSpectators
+        position={[-1, roadY + 1, -2]}
+        rotation={[0, Math.PI, 0]}
+        scale={SCALES.stadiumSeats}
+        dimensions={[2.0, 0.6, 1.5]}
+        roadY={roadY}
+      />
+
       {/* Right side buildings */}
 
       <group position={[3, roadY + 1, 1]}>
@@ -494,9 +468,6 @@ function CleanBattleScene() {
   // Refs to store both tank RigidBody references for collision effects
   const player1TankRef = useRef<RapierRigidBody>(null)
   const player2TankRef = useRef<RapierRigidBody>(null)
-  
-  // Track explosion effects
-  const [explosionEffects, setExplosionEffects] = useState<Array<{ id: number, position: [number, number, number] }>>([])
 
   // Recoil effect: Push shooter tank backward (opposite to firing direction)
   const applyRecoilEffect = useCallback((tankRef: React.RefObject<RapierRigidBody | null>, firingDirection: { x: number; y: number }) => {
@@ -561,18 +532,6 @@ function CleanBattleScene() {
     // Apply shake to enemy tank
     if (enemyTankRef) {
       applyShakeEffect(enemyTankRef)
-      
-      // Spawn explosion at hit position (only when hitting a tank)
-      if (hitData.hitPosition) {
-        const maxExplosions = visualEffectsConfig.explosion.maxConcurrent
-        setExplosionEffects(prev => {
-          const filtered = prev.length >= maxExplosions ? prev.slice(1) : prev
-          return [...filtered, {
-            id: Date.now() + Math.random(),
-            position: hitData.hitPosition!
-          }]
-        })
-      }
     }
   }, [applyRecoilEffect, applyShakeEffect])
 
@@ -716,17 +675,6 @@ function CleanBattleScene() {
         intensity={lightingConfig.directionalTop.intensity}
         color={lightingConfig.directionalTop.color}
       />
-      
-      {/* Render explosion effects */}
-      {explosionEffects.map(explosion => (
-        <ExplosionEffect
-          key={explosion.id}
-          position={explosion.position}
-          onComplete={() => {
-            setExplosionEffects(prev => prev.filter(e => e.id !== explosion.id))
-          }}
-        />
-      ))}
     </>
   )
 }

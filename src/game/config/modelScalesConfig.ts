@@ -65,6 +65,8 @@ export interface ModelScalesConfig {
     fortress: number
     /** Turret gun scale */
     turretGun: number
+    /** Stadium seats scale */
+    stadiumSeats: number
     /** Alternative building scales */
     alternatives: {
       small: number
@@ -148,6 +150,7 @@ export const modelScalesConfig: ModelScalesConfig = {
     barracks: 1.2,
     fortress: 1.5,
     turretGun: 2.5,
+    stadiumSeats: 0.27,
     alternatives: {
       small: 0.5,
       medium: 0.7,
