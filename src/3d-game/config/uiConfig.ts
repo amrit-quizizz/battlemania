@@ -122,10 +122,16 @@ export interface UIConfig {
       yOffset: number
       /** Font size */
       fontSize: number
-      /** Outline width */
-      outlineWidth: number
-      /** Outline color */
-      outlineColor: string
+      /** Stroke width to make text appear bolder */
+      strokeWidth: number
+      /** Shadow settings */
+      shadow: {
+        enabled: boolean
+        color: string
+        offsetX: number
+        offsetY: number
+        offsetZ: number
+      }
     }
     /** Score text settings */
     score: {
@@ -266,21 +272,29 @@ export const uiConfig: UIConfig = {
       speed: 0.8,
       amplitude: 0.04
     },
-    textZOffset: 0.3,
-    /** Use empty string for default font (no external loading) */
-    fontUrl: '',
+    textZOffset: 0.2,
+    /** Orbitron font served locally (TTF format required for drei Text) */
+    fontUrl: '/fonts/Orbitron-Bold.ttf',
     playerName: {
       yOffset: 0.35,
-      fontSize: 0.32,
-      outlineWidth: 0.025,
-      outlineColor: '#000000'
+      fontSize: 0.46,
+      /** Stroke/outline to make text appear bolder */
+      strokeWidth: 0.012,
+      /** Shadow settings for text */
+      shadow: {
+        enabled: true,
+        color: '#000000',
+        offsetX: 0.05,
+        offsetY: -0.03,
+        offsetZ: -0.02
+      }
     },
     /** Score display - hidden */
     score: {
       show: false,
       xOffset: 0,
-      yOffset: 0,
-      fontSize: 0.55,
+      yOffset: 1,
+      fontSize: 1,
       color: '#ffffff',
       outlineWidth: 0.03,
       outlineColor: '#000000'

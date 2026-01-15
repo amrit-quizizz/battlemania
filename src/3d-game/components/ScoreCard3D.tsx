@@ -168,7 +168,8 @@ export function ScoreCard3D({
   const groupRef = useRef<THREE.Group>(null)
   const { 
     animation, 
-    textZOffset, 
+    textZOffset,
+    fontUrl,
     playerName: nameConfig, 
     score: scoreConfig, 
     healthBar: healthBarConfig,
@@ -199,15 +200,34 @@ export function ScoreCard3D({
         <CuttingBoardBackground />
       </Suspense>
       
-      {/* Player Name - Top center */}
+      {/* Player Name - Top center with Orbitron font */}
+      {/* Shadow layer */}
+      {nameConfig.shadow.enabled && (
+        <Text
+          position={[
+            nameConfig.shadow.offsetX, 
+            nameConfig.yOffset + nameConfig.shadow.offsetY, 
+            textZOffset + nameConfig.shadow.offsetZ
+          ]}
+          fontSize={nameConfig.fontSize}
+          color={nameConfig.shadow.color}
+          anchorX="center"
+          anchorY="middle"
+          font={fontUrl || undefined}
+        >
+          {playerName.toUpperCase()}
+        </Text>
+      )}
+      {/* Main text */}
       <Text
         position={[0, nameConfig.yOffset, textZOffset]}
         fontSize={nameConfig.fontSize}
         color={teamColor}
         anchorX="center"
         anchorY="middle"
-        outlineWidth={nameConfig.outlineWidth}
-        outlineColor={nameConfig.outlineColor}
+        font={fontUrl || undefined}
+        outlineWidth={nameConfig.strokeWidth}
+        outlineColor={teamColor}
       >
         {playerName.toUpperCase()}
       </Text>
