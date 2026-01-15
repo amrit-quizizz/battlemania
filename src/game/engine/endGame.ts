@@ -15,10 +15,15 @@ const endGame = (
   game: GameInstance,
   dispatch: AppDispatch
 ): EndGameResult => {
-  // Determine winner based on highest damage dealt
-  const sortedPlayers = [...game.players].sort(
-    (a, b) => b.totalDamageDealt - a.totalDamageDealt
-  );
+  // Determine winner based on highest health (or highest damage dealt if health is equal)
+  const sortedPlayers = [...game.players].sort((a, b) => {
+    // First, sort by health (higher is better)
+    if (b.health !== a.health) {
+      return b.health - a.health;
+    }
+    // If health is equal, sort by total damage dealt (higher is better)
+    return b.totalDamageDealt - a.totalDamageDealt;
+  });
 
   const winner = sortedPlayers[0];
   const reason: 'damage' | 'turns_completed' = 'turns_completed';

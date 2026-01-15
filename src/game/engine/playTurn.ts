@@ -1,10 +1,12 @@
 import type { AppDispatch } from "../../store/store";
-import { updateDamage, incrementTurn, recordTurn } from "../../store/gameSlice";
+import { updateDamage, takeDamage, incrementTurn, recordTurn } from "../../store/gameSlice";
 import { getAmmunitionDetails } from "../data/ammunition";
+import { getWallDetails } from "../data/walls";
 
 export interface PlayerAction {
   playerId: string;
-  ammunitionId: string;
+  ammunitionId: string | null;
+  wallId?: string | null;
 }
 
 export interface PlayTurnRequest {
@@ -19,6 +21,7 @@ export interface TurnResult {
     toPlayer: string;
     damage: number;
     ammunitionId: string;
+    defendedBy?: number;
   }>;
 }
 
@@ -45,27 +48,48 @@ const playTurn = (
   // Process each action - player attacks the opponent
   actions.forEach((action, index) => {
     const fromPlayer = action.playerId;
-    const toPlayer = playerIds[1 - index]; // Opponent is the other player
-    const ammoDetails = getAmmunitionDetails(action.ammunitionId);
+    const opponentAction = actions[1 - index]; // Get opponent's action
+    const toPlayer = opponentAction.playerId;
 
-    if (!ammoDetails) {
+    // Get ammunition details (null means "No Attack" - 0 damage)
+    const ammoDetails = action.ammunitionId ? getAmmunitionDetails(action.ammunitionId) : null;
+
+    if (action.ammunitionId && !ammoDetails) {
       throw new Error(`Invalid ammunition ID: ${action.ammunitionId}`);
     }
 
-    const damage = ammoDetails.damage;
+    const rawDamage = ammoDetails?.damage || 0;
 
-    // Update attacker's total damage dealt
-    dispatch(updateDamage({
-      gameId,
-      playerId: fromPlayer,
-      damage,
-    }));
+    // Get opponent's wall defense
+    const opponentWall = opponentAction.wallId ? getWallDetails(opponentAction.wallId) : null;
+    const wallDefense = opponentWall?.defense || 0;
+
+    // Calculate actual damage after wall absorption
+    const actualDamage = Math.max(0, rawDamage - wallDefense);
+
+    // Apply damage to the opponent's health and track attacker's stats
+    if (actualDamage > 0) {
+      // Reduce opponent's health
+      dispatch(takeDamage({
+        gameId,
+        playerId: toPlayer,
+        damage: actualDamage,
+      }));
+
+      // Track attacker's total damage dealt for stats
+      dispatch(updateDamage({
+        gameId,
+        playerId: fromPlayer,
+        damage: actualDamage,
+      }));
+    }
 
     damages.push({
       fromPlayer,
       toPlayer,
-      damage,
-      ammunitionId: action.ammunitionId,
+      damage: actualDamage,
+      ammunitionId: action.ammunitionId || '',
+      defendedBy: wallDefense,
     });
   });
 

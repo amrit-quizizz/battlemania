@@ -4,12 +4,17 @@ import type { RootState } from './store';
 
 export interface GamePlayer {
   playerId: string;
+  health: number;
   totalDamageDealt: number;
+  points: number;
+  selectedAmmunitionId: string | null;
+  selectedWallId: string | null;
 }
 
 export interface TurnAction {
   playerId: string;
-  ammunitionId: string;
+  ammunitionId: string | null;
+  wallId?: string | null;
 }
 
 export interface TurnRecord {
@@ -20,6 +25,7 @@ export interface TurnRecord {
     toPlayer: string;
     damage: number;
     ammunitionId: string;
+    defendedBy?: number;
   }>;
   timestamp: number;
 }
@@ -56,7 +62,11 @@ export const gameSlice = createSlice({
         currentTurn: 1,
         players: playerIds.map(playerId => ({
           playerId,
+          health: 100,
           totalDamageDealt: 0,
+          points: 100,
+          selectedAmmunitionId: null,
+          selectedWallId: null,
         })),
         turnHistory: [],
       };
@@ -72,6 +82,17 @@ export const gameSlice = createSlice({
         const player = game.players.find(p => p.playerId === playerId);
         if (player) {
           player.totalDamageDealt += damage;
+        }
+      }
+    },
+    takeDamage: (state, action: PayloadAction<{ gameId: string; playerId: string; damage: number }>) => {
+      const { gameId, playerId, damage } = action.payload;
+      const game = state.games[gameId];
+
+      if (game) {
+        const player = game.players.find(p => p.playerId === playerId);
+        if (player) {
+          player.health = Math.max(0, player.health - damage);
         }
       }
     },
@@ -105,10 +126,54 @@ export const gameSlice = createSlice({
     resetGame: (state) => {
       state.currentGameId = null;
     },
+    selectAmmunition: (state, action: PayloadAction<{ gameId: string; playerId: string; ammunitionId: string | null }>) => {
+      const { gameId, playerId, ammunitionId } = action.payload;
+      const game = state.games[gameId];
+
+      if (game) {
+        const player = game.players.find(p => p.playerId === playerId);
+        if (player) {
+          player.selectedAmmunitionId = ammunitionId;
+        }
+      }
+    },
+    selectWall: (state, action: PayloadAction<{ gameId: string; playerId: string; wallId: string | null }>) => {
+      const { gameId, playerId, wallId } = action.payload;
+      const game = state.games[gameId];
+
+      if (game) {
+        const player = game.players.find(p => p.playerId === playerId);
+        if (player) {
+          player.selectedWallId = wallId;
+        }
+      }
+    },
+    clearSelections: (state, action: PayloadAction<string>) => {
+      const gameId = action.payload;
+      const game = state.games[gameId];
+
+      if (game) {
+        game.players.forEach(player => {
+          player.selectedAmmunitionId = null;
+          player.selectedWallId = null;
+        });
+      }
+    },
+    deductPoints: (state, action: PayloadAction<{ gameId: string; playerId: string; points: number }>) => {
+      const { gameId, playerId, points } = action.payload;
+      const game = state.games[gameId];
+
+      if (game) {
+        const player = game.players.find(p => p.playerId === playerId);
+        if (player) {
+          player.points -= points;
+        }
+      }
+    },
   },
 });
 
-export const { startGame, updateDamage, incrementTurn, endGame, recordTurn, resetGame } = gameSlice.actions;
+export const { startGame, updateDamage, takeDamage, incrementTurn, endGame, recordTurn, resetGame, selectAmmunition, selectWall, clearSelections, deductPoints } = gameSlice.actions;
 
 export const selectGame = (gameId: string) => (state: RootState) =>
   state.game.games[gameId];

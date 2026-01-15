@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { selectCurrentGame, selectCurrentGameTurnHistory } from '../../store/gameSlice';
+import { selectCurrentGame, selectCurrentGameTurnHistory, selectAmmunition, selectWall, clearSelections, deductPoints } from '../../store/gameSlice';
 import startGame from '../../game/engine/startGame';
 import playTurn from '../../game/engine/playTurn';
 import endGame from '../../game/engine/endGame';
 import resetGame from '../../game/engine/resetGame';
 import GameCanvas from '../../components/GameCanvas';
 import { useProjectiles } from '../../hooks/useProjectiles';
-import { getAmmunitionCatalog, AMMUNITION_MAP } from '../../game/data/ammunition';
+import { getAmmunitionDetails, AMMUNITION_MAP } from '../../game/data/ammunition';
+import { getWallDetails, WALL_MAP } from '../../game/data/walls';
 import type { GameComponentProps } from '../types';
 
 const MAX_TURNS = 10;
@@ -33,25 +34,66 @@ const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd }) => {
     setCurrentGameId(gameId);
   };
 
+  const handleSelectAmmunition = (playerId: string, ammunitionId: string | null) => {
+    if (!currentGameId) return;
+    dispatch(selectAmmunition({ gameId: currentGameId, playerId, ammunitionId }));
+  };
+
+  const handleSelectWall = (playerId: string, wallId: string | null) => {
+    if (!currentGameId) return;
+    dispatch(selectWall({ gameId: currentGameId, playerId, wallId }));
+  };
+
   const handlePlayTurn = () => {
     if (!currentGameId || !currentGame || currentGame.status === 'COMPLETED') return;
 
-    // Random ammunition selection for demo - using catalog
-    const catalog = getAmmunitionCatalog();
-    const p1Ammo = catalog[Math.floor(Math.random() * catalog.length)].ammunitionId;
-    const p2Ammo = catalog[Math.floor(Math.random() * catalog.length)].ammunitionId;
+    const p1 = currentGame.players[0];
+    const p2 = currentGame.players[1];
 
+    // Get ammunition and wall details (null ammunition means "No Attack")
+    const p1Ammo = p1.selectedAmmunitionId ? getAmmunitionDetails(p1.selectedAmmunitionId) : null;
+    const p2Ammo = p2.selectedAmmunitionId ? getAmmunitionDetails(p2.selectedAmmunitionId) : null;
+    const p1Wall = p1.selectedWallId ? getWallDetails(p1.selectedWallId) : null;
+    const p2Wall = p2.selectedWallId ? getWallDetails(p2.selectedWallId) : null;
+
+    // Calculate total costs
+    const p1TotalCost = (p1Ammo?.cost || 0) + (p1Wall?.cost || 0);
+    const p2TotalCost = (p2Ammo?.cost || 0) + (p2Wall?.cost || 0);
+
+    // Validate players can afford their selections
+    if (p1.points < p1TotalCost) {
+      console.error('P1 cannot afford selected ammunition and wall');
+      return;
+    }
+
+    if (p2.points < p2TotalCost) {
+      console.error('P2 cannot afford selected ammunition and wall');
+      return;
+    }
+
+    // Execute turn (null ammunition is allowed - means no attack)
     const turnResult = playTurn(
       currentGameId,
       {
         turnNumber: currentGame.currentTurn,
         actions: [
-          { playerId: 'P1', ammunitionId: p1Ammo },
-          { playerId: 'P2', ammunitionId: p2Ammo },
+          { playerId: 'P1', ammunitionId: p1.selectedAmmunitionId, wallId: p1.selectedWallId },
+          { playerId: 'P2', ammunitionId: p2.selectedAmmunitionId, wallId: p2.selectedWallId },
         ],
       },
       dispatch
     );
+
+    // Deduct points for both ammunition and walls
+    if (p1TotalCost > 0) {
+      dispatch(deductPoints({ gameId: currentGameId, playerId: 'P1', points: p1TotalCost }));
+    }
+    if (p2TotalCost > 0) {
+      dispatch(deductPoints({ gameId: currentGameId, playerId: 'P2', points: p2TotalCost }));
+    }
+
+    // Clear selections for next turn
+    dispatch(clearSelections(currentGameId));
 
     // Fire projectiles with animation
     fireProjectiles(turnResult);
@@ -70,11 +112,21 @@ const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd }) => {
     }
   }, [currentGame?.currentTurn]);
 
+  // Auto-end game when any player reaches 0 health
+  useEffect(() => {
+    if (currentGame && currentGame.status === 'ACTIVE') {
+      const anyPlayerDead = currentGame.players.some(p => p.health <= 0);
+      if (anyPlayerDead) {
+        handleEndGame();
+      }
+    }
+  }, [currentGame?.players]);
+
   return (
     <div style={{ display: 'flex', height: '100%', width: '100%' }}>
       {/* Game Canvas - 80% width */}
       <div style={{ width: '80%', height: '100%', backgroundColor: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-        <GameCanvas game={currentGame} projectiles={projectiles} />
+        <GameCanvas game={currentGame} projectiles={projectiles} onSelectAmmunition={handleSelectAmmunition} onSelectWall={handleSelectWall} />
       </div>
 
       {/* Control Panel - 20% width */}
@@ -137,7 +189,7 @@ const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd }) => {
                 <div style={{ fontSize: '12px', color: '#86efac', marginBottom: '10px' }}>
                   {currentGame.players.map(p => (
                     <div key={p.playerId}>
-                      {p.playerId}: {p.totalDamageDealt} damage
+                      {p.playerId}: {p.health} HP | {p.totalDamageDealt} DMG
                     </div>
                   ))}
                 </div>
@@ -181,16 +233,19 @@ const BattleManiaGame: React.FC<GameComponentProps> = ({ onGameEnd }) => {
                     <div key={turn.turnNumber} style={{ marginBottom: '10px', padding: '8px', backgroundColor: '#2a2a2a', borderRadius: '4px' }}>
                       <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Turn {turn.turnNumber}</div>
                       {turn.actions.map((action, idx) => {
-                        const ammo = AMMUNITION_MAP[action.ammunitionId];
+                        const ammo = action.ammunitionId ? AMMUNITION_MAP[action.ammunitionId] : null;
+                        const wall = action.wallId ? WALL_MAP[action.wallId] : null;
                         return (
                           <div key={idx} style={{ fontSize: '10px', marginBottom: '3px' }}>
-                            {action.playerId} used {ammo?.icon} {ammo?.name || action.ammunitionId}
+                            {action.playerId} used {ammo ? `${ammo.icon} ${ammo.name}` : 'No Attack'}
+                            {wall && ` + ${wall.icon} ${wall.name}`}
                           </div>
                         );
                       })}
                       {turn.damages.map((dmg, idx) => (
                         <div key={idx} style={{ fontSize: '10px', color: '#ef4444' }}>
                           → {dmg.fromPlayer} dealt {dmg.damage} damage to {dmg.toPlayer}
+                          {dmg.defendedBy && dmg.defendedBy > 0 && ` (blocked ${dmg.defendedBy})`}
                         </div>
                       ))}
                     </div>

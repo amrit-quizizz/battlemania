@@ -16,8 +16,8 @@ export interface Projectile {
 }
 
 const PLAYER_POSITIONS = {
-  P1: { x: 198, y: 749 }, // Tank 1 cannon tip (100 + 65 + 33, 725 + 20 + 4) scaled 1.3x
-  P2: { x: 1418, y: 749 }, // Tank 2 cannon tip (1450 - 32, 725 + 20 + 4) scaled 1.3x
+  P1: { x: 132, y: 676 }, // Tank 1 turret center
+  P2: { x: 1482, y: 676 }, // Tank 2 turret center
 };
 
 export const useProjectiles = () => {
