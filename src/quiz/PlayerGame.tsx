@@ -190,19 +190,34 @@ function PlayerGame() {
                 clearTimeout(popupTimerRef.current);
               }
 
+              // Check if this is a game over popup
+              const isGameOver = data.isGameOver || false;
+
               // Auto-continue after 5 seconds (simulating popup animation/visualization)
               popupTimerRef.current = setTimeout(() => {
-                console.log('Popup timer expired, sending continue signal');
-                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({
-                    type: 'popup_continue',
-                    gameCode: gameCode
-                  }));
-                }
+                console.log('Popup timer expired');
                 setShowPopup(false);
+
+                if (isGameOver) {
+                  // Game is ending, just send continue signal (server will finalize)
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                      type: 'popup_continue',
+                      gameCode: gameCode
+                    }));
+                  }
+                } else {
+                  // Normal turn end, send continue signal
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                      type: 'popup_continue',
+                      gameCode: gameCode
+                    }));
+                  }
+                }
               }, 5000);
             } else if (data.state === 'GAME_OVER') {
-              // Game over
+              // Game over (old message format, fallback)
               alert(`Game Over! Team A: ${data.finalScoreA}, Team B: ${data.finalScoreB}`);
               navigate('/quiz/join');
             }
@@ -611,40 +626,125 @@ function PlayerGame() {
 
         {/* Popup Panel - Shows between turns */}
         {showPopup && (
-          <div className="result-popup-overlay" style={{ zIndex: 1000 }}>
+          <div className="result-popup-overlay" style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            animation: 'fadeIn 0.3s ease-in-out'
+          }}>
             <div className="result-popup" style={{
-              minHeight: '300px',
+              minHeight: '400px',
+              minWidth: '600px',
+              maxWidth: '90vw',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              animation: 'fadeIn 0.3s ease-in-out'
+              background: 'linear-gradient(135deg, #1a2332 0%, #2d3e50 100%)',
+              borderRadius: '24px',
+              padding: '3rem',
+              border: '3px solid #ffd700',
+              boxShadow: '0 0 50px rgba(255, 215, 0, 0.5)',
+              position: 'relative',
+              overflow: 'hidden'
             }}>
-              <div className="result-content" style={{ textAlign: 'center' }}>
-                <h2 style={{ fontSize: '2rem', marginBottom: '1rem', color: 'white' }}>
-                  🎮 Get Ready!
+              {/* Battlefield background effect */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.02) 20px)',
+                pointerEvents: 'none'
+              }}></div>
+
+              <div className="result-content" style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+                <h2 style={{
+                  fontSize: '2.5rem',
+                  marginBottom: '1rem',
+                  color: '#ffd700',
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  textShadow: '0 0 20px rgba(255, 215, 0, 0.5)',
+                  animation: 'pulse 1s ease-in-out infinite'
+                }}>
+                  ⚔️ BATTLE INTERMISSION ⚔️
                 </h2>
-                <p style={{ fontSize: '1.2rem', color: 'rgba(255,255,255,0.9)', marginBottom: '2rem' }}>
+
+                {/* Tank Battle Animation */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  margin: '3rem 0',
+                  position: 'relative',
+                  height: '100px'
+                }}>
+                  {/* Blue Team Tank */}
+                  <div style={{
+                    fontSize: '4rem',
+                    animation: 'tankMove 2s ease-in-out infinite',
+                    filter: 'drop-shadow(0 0 10px rgba(0, 212, 255, 0.8))'
+                  }}>
+                    🛡️
+                  </div>
+
+                  {/* Explosion in middle */}
+                  <div style={{
+                    fontSize: '3rem',
+                    animation: 'explosion 1s ease-in-out infinite',
+                    position: 'absolute',
+                    left: '50%',
+                    transform: 'translateX(-50%)'
+                  }}>
+                    💥
+                  </div>
+
+                  {/* Red Team Tank */}
+                  <div style={{
+                    fontSize: '4rem',
+                    animation: 'tankMove 2s ease-in-out infinite',
+                    animationDirection: 'reverse',
+                    filter: 'drop-shadow(0 0 10px rgba(255, 68, 68, 0.8))'
+                  }}>
+                    ⚡
+                  </div>
+                </div>
+
+                <p style={{
+                  fontSize: '1.3rem',
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  fontWeight: 600,
+                  marginBottom: '1rem'
+                }}>
                   Turn complete! Preparing next round...
                 </p>
+
+                {/* Loading bar */}
                 <div style={{
-                  width: '60px',
-                  height: '60px',
-                  border: '4px solid rgba(255,255,255,0.3)',
-                  borderTop: '4px solid white',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                  margin: '0 auto'
-                }}></div>
-                <p style={{
-                  fontSize: '0.9rem',
-                  color: 'rgba(255,255,255,0.7)',
-                  marginTop: '2rem',
-                  fontStyle: 'italic'
+                  width: '100%',
+                  height: '8px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: '4px',
+                  overflow: 'hidden',
+                  marginTop: '2rem'
                 }}>
-                  This is where your visualization will appear
-                </p>
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #00d4ff 0%, #ff4444 100%)',
+                    animation: 'pulse 1s ease-in-out infinite'
+                  }}></div>
+                </div>
               </div>
             </div>
           </div>

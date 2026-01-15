@@ -4,40 +4,126 @@
   align-items: center;
   min-height: 100vh;
   padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Animated battlefield tanks in background */
+.join-game-container::before {
+  content: '🛡️';
+  position: fixed;
+  font-size: 8rem;
+  top: 15%;
+  left: -50px;
+  opacity: 0.1;
+  animation: tankSlideRight 15s linear infinite;
+  filter: drop-shadow(0 0 30px rgba(0, 212, 255, 0.4));
+}
+
+.join-game-container::after {
+  content: '⚡';
+  position: fixed;
+  font-size: 8rem;
+  bottom: 15%;
+  right: -50px;
+  opacity: 0.1;
+  animation: tankSlideLeft 12s linear infinite;
+  filter: drop-shadow(0 0 30px rgba(255, 68, 68, 0.4));
+}
+
+@keyframes tankSlideRight {
+  0% {
+    left: -100px;
+  }
+  100% {
+    left: calc(100% + 100px);
+  }
+}
+
+@keyframes tankSlideLeft {
+  0% {
+    right: -100px;
+  }
+  100% {
+    right: calc(100% + 100px);
+  }
+}
+
+/* Explosion decorations */
+.join-game-card::before {
+  content: '💥';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  font-size: 4rem;
+  opacity: 0.2;
+  animation: explosion 2s ease-in-out infinite;
+}
+
+.join-game-card::after {
+  content: '⚔️';
+  position: absolute;
+  bottom: -25px;
+  left: -25px;
+  font-size: 3.5rem;
+  opacity: 0.15;
+  animation: pulse 2s ease-in-out infinite;
 }
 
 .join-game-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(42, 55, 72, 0.95) 0%, rgba(28, 37, 48, 0.98) 100%);
+  backdrop-filter: blur(15px);
+  border-radius: 24px;
   padding: 3rem;
   max-width: 500px;
   width: 100%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(255, 200, 50, 0.3),
+    inset 0 0 20px rgba(255, 200, 50, 0.05);
+  border: 2px solid rgba(255, 200, 50, 0.4);
+  position: relative;
+  z-index: 1;
+  animation: fadeIn 0.5s ease-out;
 }
 
 .join-game-title {
-  font-size: 2.5rem;
+  font-size: 2.8rem;
   margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #ff4500 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
   text-align: center;
+  animation: pulse 2s ease-in-out infinite;
+  position: relative;
+  z-index: 1;
+}
+
+.join-game-title::before {
+  content: '🎯 ';
 }
 
 .join-game-subtitle {
   font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.8);
   margin-bottom: 2rem;
   text-align: center;
+  font-weight: 600;
+  position: relative;
+  z-index: 1;
 }
 
 .join-form {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  position: relative;
+  z-index: 1;
 }
 
 .form-group {
@@ -47,25 +133,29 @@
 }
 
 .form-group label {
-  font-size: 1rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffd700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .form-input {
-  padding: 0.75rem 1rem;
-  font-size: 1rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 1rem 1.25rem;
+  font-size: 1.05rem;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 215, 0, 0.3);
   background: rgba(255, 255, 255, 0.05);
   color: white;
   transition: all 0.3s ease;
+  font-weight: 600;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #646cff;
-  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+  border-color: #ffd700;
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.2);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .form-input:disabled {
@@ -75,34 +165,55 @@
 
 .form-input::placeholder {
   color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
 }
 
 .error-message {
-  padding: 0.75rem 1rem;
+  padding: 1rem 1.25rem;
   background: rgba(255, 68, 68, 0.2);
-  border: 1px solid rgba(255, 68, 68, 0.5);
-  border-radius: 8px;
+  border: 2px solid rgba(255, 68, 68, 0.5);
+  border-radius: 12px;
   color: #ff6b6b;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   text-align: center;
+  font-weight: 600;
+  animation: shake 0.5s ease-in-out;
 }
 
 .join-button {
-  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
-  color: white;
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+  color: #1a2332;
   border: none;
-  padding: 1rem 2rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  border-radius: 12px;
+  padding: 1.2rem 2.5rem;
+  font-size: 1.2rem;
+  font-weight: 900;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(100, 108, 255, 0.4);
+  box-shadow:
+    0 6px 20px rgba(255, 215, 0, 0.5),
+    0 0 0 3px rgba(255, 215, 0, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.join-button::before {
+  content: '⚔️ ';
+}
+
+.join-button::after {
+  content: ' ⚔️';
 }
 
 .join-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(100, 108, 255, 0.6);
+  transform: translateY(-3px) scale(1.05);
+  box-shadow:
+    0 8px 25px rgba(255, 215, 0, 0.7),
+    0 0 0 3px rgba(255, 215, 0, 0.5);
+}
+
+.join-button:active:not(:disabled) {
+  transform: translateY(0) scale(1);
 }
 
 .join-button:disabled {
@@ -112,20 +223,23 @@
 }
 
 .back-button {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 0.75rem 2rem;
+  background: rgba(255, 200, 50, 0.2);
+  color: #ffd700;
+  border: 2px solid rgba(255, 200, 50, 0.4);
+  padding: 0.9rem 2.5rem;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 700;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .back-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 200, 50, 0.3);
   transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 200, 50, 0.4);
 }
 
 .back-button:disabled {
@@ -133,37 +247,17 @@
   cursor: not-allowed;
 }
 
-@media (prefers-color-scheme: light) {
+@media (max-width: 768px) {
   .join-game-card {
-    background: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 2.5rem 2rem;
   }
 
-  .join-game-subtitle {
-    color: rgba(0, 0, 0, 0.7);
+  .join-game-title {
+    font-size: 2.2rem;
   }
 
-  .form-group label {
-    color: rgba(0, 0, 0, 0.8);
-  }
-
-  .form-input {
-    background: rgba(0, 0, 0, 0.05);
-    border-color: rgba(0, 0, 0, 0.2);
-    color: rgba(0, 0, 0, 0.9);
-  }
-
-  .form-input::placeholder {
-    color: rgba(0, 0, 0, 0.4);
-  }
-
-  .back-button {
-    background: rgba(0, 0, 0, 0.05);
-    border-color: rgba(0, 0, 0, 0.2);
-    color: rgba(0, 0, 0, 0.8);
-  }
-
-  .back-button:hover:not(:disabled) {
-    background: rgba(0, 0, 0, 0.1);
+  .join-game-container::before,
+  .join-game-container::after {
+    font-size: 5rem;
   }
 }

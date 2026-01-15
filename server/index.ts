@@ -75,6 +75,9 @@ interface GameSession {
   // Turn data
   currentTurn: number;
   playerStates: Map<WebSocket, PlayerTurnState>;
+
+  // End game flag
+  isEndingGame: boolean;
 }
 
 // Store game sessions
@@ -391,24 +394,82 @@ function transitionToShowingPopup(session: GameSession): void {
 function transitionToGameOver(session: GameSession): void {
   clearTimers(session);
 
-  // Update state
-  session.currentState = GameState.GAME_OVER;
+  // Set flag that game is ending
+  session.isEndingGame = true;
   session.isActive = false;
 
-  // Broadcast final state
+  // First show popup before game over
+  session.currentState = GameState.SHOWING_POPUP;
+
+  // Broadcast popup with game over info
+  const message = {
+    type: 'game_state',
+    state: 'SHOWING_POPUP',
+    isGameOver: true,
+    finalScoreA: session.scoreA,
+    finalScoreB: session.scoreB,
+    scoreA: session.scoreA,
+    scoreB: session.scoreB,
+    timestamp: Date.now()
+  };
+
+  // Send to all players
+  let sentToPlayers = 0;
   [...session.teamA, ...session.teamB].forEach(player => {
+    console.log(`Player ${player.name} WebSocket state:`, player.ws.readyState, 'OPEN=', WebSocket.OPEN);
     if (player.ws.readyState === WebSocket.OPEN) {
-      player.ws.send(JSON.stringify({
-        type: 'game_state',
-        state: 'GAME_OVER',
-        finalScoreA: session.scoreA,
-        finalScoreB: session.scoreB,
-        timestamp: Date.now()
-      }));
+      player.ws.send(JSON.stringify(message));
+      sentToPlayers++;
+      console.log(`Sent SHOWING_POPUP (game over) to player ${player.name}`);
+    } else {
+      console.log(`Player ${player.name} WebSocket is not open, state: ${player.ws.readyState}`);
     }
   });
 
-  console.log(`Game ${session.gameCode} ended: Team A ${session.scoreA}, Team B ${session.scoreB}`);
+  // Send to host
+  if (session.hostWs && session.hostWs.readyState === WebSocket.OPEN) {
+    session.hostWs.send(JSON.stringify(message));
+    console.log(`Sent SHOWING_POPUP (game over) to host`);
+  } else {
+    console.log(`Host WebSocket is not open`);
+  }
+
+  console.log(`Game ${session.gameCode} ending: Team A ${session.scoreA}, Team B ${session.scoreB} - showing popup. Sent to ${sentToPlayers} players`);
+}
+
+function finalizeGameOver(session: GameSession): void {
+  // Update state to game over
+  session.currentState = GameState.GAME_OVER;
+
+  // Broadcast final game over message
+  const message = {
+    type: 'game_ended',
+    finalScoreA: session.scoreA,
+    finalScoreB: session.scoreB,
+    timestamp: Date.now()
+  };
+
+  // Send to all players
+  let sentToPlayers = 0;
+  [...session.teamA, ...session.teamB].forEach(player => {
+    if (player.ws.readyState === WebSocket.OPEN) {
+      player.ws.send(JSON.stringify(message));
+      sentToPlayers++;
+      console.log(`Sent game_ended to player ${player.name}`);
+    } else {
+      console.log(`Player ${player.name} WebSocket not open for game_ended message`);
+    }
+  });
+
+  // Send to host
+  if (session.hostWs && session.hostWs.readyState === WebSocket.OPEN) {
+    session.hostWs.send(JSON.stringify(message));
+    console.log(`Sent game_ended to host`);
+  } else {
+    console.log(`Host WebSocket not open for game_ended message`);
+  }
+
+  console.log(`Game ${session.gameCode} finalized: Team A ${session.scoreA}, Team B ${session.scoreB}. Sent to ${sentToPlayers} players`);
 }
 
 wss.on('connection', (ws: WebSocket) => {
@@ -442,6 +503,7 @@ wss.on('connection', (ws: WebSocket) => {
             turnTimerInterval: null,
             currentTurn: 0,
             playerStates: new Map(),
+            isEndingGame: false,
           };
 
           gameSessions.set(gameCode, session);
@@ -631,7 +693,12 @@ wss.on('connection', (ws: WebSocket) => {
           }
 
           // Only host can end the game
+          console.log(`end_game received for ${gameCode}, checking host permission`);
+          console.log(`session.hostWs === ws?`, session.hostWs === ws);
+          console.log(`session.hostWs readyState:`, session.hostWs?.readyState, `current ws readyState:`, ws.readyState);
+
           if (session.hostWs !== ws) {
+            console.log(`Permission denied: WebSocket is not the host`);
             ws.send(JSON.stringify({
               type: 'error',
               message: 'Only the host can end the game',
@@ -640,6 +707,7 @@ wss.on('connection', (ws: WebSocket) => {
           }
 
           // Transition to game over state
+          console.log(`Calling transitionToGameOver for game ${gameCode}`);
           transitionToGameOver(session);
 
           console.log(`Game ${gameCode} ended by host`);
@@ -698,6 +766,10 @@ wss.on('connection', (ws: WebSocket) => {
                 }
               }
             }
+          } else {
+            // No playerName means this is the admin/host reconnecting
+            console.log(`Admin reconnecting with new WebSocket for game ${gameCode}`);
+            session.hostWs = ws;  // Update host WebSocket reference
           }
 
           // Send current game state with state machine info
@@ -897,10 +969,14 @@ wss.on('connection', (ws: WebSocket) => {
             return;
           }
 
-          console.log(`Popup continue signal received for game ${gameCode}, starting next turn`);
-
-          // Transition to next turn
-          transitionToLevelSelection(session);
+          // Check if game is ending
+          if (session.isEndingGame) {
+            console.log(`Popup continue signal received for game ${gameCode}, finalizing game over`);
+            finalizeGameOver(session);
+          } else {
+            console.log(`Popup continue signal received for game ${gameCode}, starting next turn`);
+            transitionToLevelSelection(session);
+          }
 
           break;
         }
