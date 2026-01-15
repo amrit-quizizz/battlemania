@@ -14,6 +14,7 @@ import {
 } from '../config/gameConfig'
 import * as THREE from 'three'
 import SmokeEffect from './SmokeEffect'
+import ExplosionEffect from './ExplosionEffect'
 
 // Model paths - using models from public/models
 const MODELS = {
@@ -103,6 +104,7 @@ function SafeModel({ modelPath, scale = 1 }: { modelPath: string, scale?: number
 interface BulletHitData {
   hitTankHandle: number | undefined
   firingDirection: { x: number; y: number }
+  hitPosition?: [number, number, number]
 }
 
 // Bullet Component
@@ -124,7 +126,8 @@ function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }:
     // Remove bullet if it goes off screen
     if (Math.abs(pos.x) > bulletConfig.boundaryLimits.sideScroll.x || Math.abs(pos.y) > bulletConfig.boundaryLimits.sideScroll.y) {
       setActive(false)
-      onHit?.({ hitTankHandle: undefined, firingDirection })
+      const hitPosition: [number, number, number] = [pos.x, pos.y, pos.z]
+      onHit?.({ hitTankHandle: undefined, firingDirection, hitPosition })
     }
   })
 
@@ -142,8 +145,13 @@ function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }:
         if (ownerTankHandle !== undefined && otherHandle === ownerTankHandle) {
           return
         }
+        // Capture bullet position at collision
+        const bulletPos = bulletRef.current?.translation()
+        const hitPosition: [number, number, number] | undefined = bulletPos
+          ? [bulletPos.x, bulletPos.y, bulletPos.z]
+          : undefined
         setActive(false)
-        onHit?.({ hitTankHandle: otherHandle, firingDirection })
+        onHit?.({ hitTankHandle: otherHandle, firingDirection, hitPosition })
       }}
     >
       <Suspense fallback={
@@ -486,6 +494,9 @@ function CleanBattleScene() {
   // Refs to store both tank RigidBody references for collision effects
   const player1TankRef = useRef<RapierRigidBody>(null)
   const player2TankRef = useRef<RapierRigidBody>(null)
+  
+  // Track explosion effects
+  const [explosionEffects, setExplosionEffects] = useState<Array<{ id: number, position: [number, number, number] }>>([])
 
   // Recoil effect: Push shooter tank backward (opposite to firing direction)
   const applyRecoilEffect = useCallback((tankRef: React.RefObject<RapierRigidBody | null>, firingDirection: { x: number; y: number }) => {
@@ -550,6 +561,18 @@ function CleanBattleScene() {
     // Apply shake to enemy tank
     if (enemyTankRef) {
       applyShakeEffect(enemyTankRef)
+      
+      // Spawn explosion at hit position (only when hitting a tank)
+      if (hitData.hitPosition) {
+        const maxExplosions = visualEffectsConfig.explosion.maxConcurrent
+        setExplosionEffects(prev => {
+          const filtered = prev.length >= maxExplosions ? prev.slice(1) : prev
+          return [...filtered, {
+            id: Date.now() + Math.random(),
+            position: hitData.hitPosition!
+          }]
+        })
+      }
     }
   }, [applyRecoilEffect, applyShakeEffect])
 
@@ -693,6 +716,17 @@ function CleanBattleScene() {
         intensity={lightingConfig.directionalTop.intensity}
         color={lightingConfig.directionalTop.color}
       />
+      
+      {/* Render explosion effects */}
+      {explosionEffects.map(explosion => (
+        <ExplosionEffect
+          key={explosion.id}
+          position={explosion.position}
+          onComplete={() => {
+            setExplosionEffects(prev => prev.filter(e => e.id !== explosion.id))
+          }}
+        />
+      ))}
     </>
   )
 }

@@ -67,6 +67,28 @@ export interface VisualEffectsConfig {
     /** Maximum concurrent smoke effects */
     maxConcurrent: number
   }
+  
+  /** Explosion effect configuration */
+  explosion: {
+    /** Initial sphere radius */
+    initialRadius: number
+    /** Maximum sphere radius */
+    maxRadius: number
+    /** Explosion lifetime in seconds */
+    lifetime: number
+    /** Starting color (hex) - bright orange/yellow */
+    startColor: string
+    /** Ending color (hex) - darker red */
+    endColor: string
+    /** Starting opacity */
+    startOpacity: number
+    /** Ending opacity */
+    endOpacity: number
+    /** Emissive intensity */
+    emissiveIntensity: number
+    /** Maximum concurrent explosions */
+    maxConcurrent: number
+  }
 }
 
 /**
@@ -104,5 +126,16 @@ export const visualEffectsConfig: VisualEffectsConfig = {
     endColor: '#ffffff',
     startOpacity: 0.8,
     maxConcurrent: 5
+  },
+  explosion: {
+    initialRadius: 0.1,
+    maxRadius: 0.8,
+    lifetime: 0.4,
+    startColor: '#FF6B00',
+    endColor: '#FF0000',
+    startOpacity: 1.0,
+    endOpacity: 0.0,
+    emissiveIntensity: 2.0,
+    maxConcurrent: 3
   }
 }
