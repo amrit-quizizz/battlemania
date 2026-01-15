@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { playerConfig } from '../config/gameConfig'
 
 interface Position {
   x: number
@@ -34,14 +35,14 @@ interface GameState {
 
 const useGameStore = create<GameState>((set, get) => ({
   player1: {
-    position: { x: -15, y: 1, z: 0 },
-    rotation: 0,
-    health: 100
+    position: { ...playerConfig.player1StartPosition },
+    rotation: playerConfig.player1StartRotation,
+    health: playerConfig.initialHealth
   },
   player2: {
-    position: { x: 15, y: 1, z: 0 },
-    rotation: Math.PI,
-    health: 100
+    position: { ...playerConfig.player2StartPosition },
+    rotation: playerConfig.player2StartRotation,
+    health: playerConfig.initialHealth
   },
   bullets: [],
 

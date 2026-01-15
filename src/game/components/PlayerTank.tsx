@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { RigidBody, RapierRigidBody } from '@react-three/rapier'
 import { useGLTF } from '@react-three/drei'
+import { playerConfig, physicsConfig } from '../config/gameConfig'
 import * as THREE from 'three'
 
 interface PlayerTankProps {
@@ -22,10 +23,10 @@ function PlayerTank({ player, initialPosition, onPositionChange }: PlayerTankPro
 
       // Jump
       if (player === 'player1' && e.key === 'w' && tankRef.current) {
-        tankRef.current.applyImpulse({ x: 0, y: 10, z: 0 }, true)
+        tankRef.current.applyImpulse({ x: 0, y: playerConfig.jumpImpulse * 12.5, z: 0 }, true)
       }
       if (player === 'player2' && e.key === 'ArrowUp' && tankRef.current) {
-        tankRef.current.applyImpulse({ x: 0, y: 10, z: 0 }, true)
+        tankRef.current.applyImpulse({ x: 0, y: playerConfig.jumpImpulse * 12.5, z: 0 }, true)
       }
 
       // Fire
@@ -55,12 +56,13 @@ function PlayerTank({ player, initialPosition, onPositionChange }: PlayerTankPro
 
     // Horizontal movement
     let moveX = 0
+    const moveSpeed = playerConfig.horizontalMoveSpeed * 3.33 // Convert to match original 5.0 value
     if (player === 'player1') {
-      if (keysPressed.current.has('a')) moveX = -5
-      if (keysPressed.current.has('d')) moveX = 5
+      if (keysPressed.current.has('a')) moveX = -moveSpeed
+      if (keysPressed.current.has('d')) moveX = moveSpeed
     } else {
-      if (keysPressed.current.has('arrowleft')) moveX = -5
-      if (keysPressed.current.has('arrowright')) moveX = 5
+      if (keysPressed.current.has('arrowleft')) moveX = -moveSpeed
+      if (keysPressed.current.has('arrowright')) moveX = moveSpeed
     }
 
     if (moveX !== 0) {
@@ -82,20 +84,20 @@ function PlayerTank({ player, initialPosition, onPositionChange }: PlayerTankPro
       ref={tankRef}
       position={initialPosition}
       colliders="hull"
-      mass={5}
-      friction={0.7}
-      restitution={0.2}
+      mass={physicsConfig.tankMassAlternative}
+      friction={physicsConfig.frictionAlternative}
+      restitution={physicsConfig.restitutionAlternative}
     >
       <group scale={1.5}>
         <primitive object={scene.clone()} />
 
         {/* Team indicator */}
-        <mesh position={[0, 3, 0]}>
-          <boxGeometry args={[2, 0.3, 0.3]} />
+        <mesh position={playerConfig.teamIndicatorPosition}>
+          <boxGeometry args={playerConfig.teamIndicatorGeometry} />
           <meshStandardMaterial
-            color={player === 'player1' ? '#0066ff' : '#ff0066'}
-            emissive={player === 'player1' ? '#0066ff' : '#ff0066'}
-            emissiveIntensity={0.5}
+            color={player === 'player1' ? playerConfig.player1Color : playerConfig.player2Color}
+            emissive={player === 'player1' ? playerConfig.player1Color : playerConfig.player2Color}
+            emissiveIntensity={playerConfig.teamIndicatorEmissiveIntensity}
           />
         </mesh>
       </group>

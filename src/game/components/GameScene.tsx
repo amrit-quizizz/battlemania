@@ -6,6 +6,7 @@ import M26TankWithTexture from './M26TankWithTexture'
 import Bullet from './Bullet'
 import Platform from './Platform'
 import useGameStore from '../store/gameStore'
+import { playerConfig, bulletConfig } from '../config/gameConfig'
 import * as THREE from 'three'
 
 function GameScene() {
@@ -36,7 +37,7 @@ function GameScene() {
           position: { ...player1.position },
           direction: { x: direction.x, y: 0, z: direction.z },
           owner: 'player1',
-          speed: 0.5
+          speed: bulletConfig.speed
         })
       }
 
@@ -49,7 +50,7 @@ function GameScene() {
           position: { ...player2.position },
           direction: { x: direction.x, y: 0, z: direction.z },
           owner: 'player2',
-          speed: 0.5
+          speed: bulletConfig.speed
         })
       }
     }
@@ -70,30 +71,30 @@ function GameScene() {
   useFrame((state, delta) => {
     // Player 1 controls (WASD)
     if (keysPressed.current.has('w')) {
-      updatePlayerPosition('player1', { z: player1.position.z - 0.1 })
+      updatePlayerPosition('player1', { z: player1.position.z - playerConfig.moveSpeed })
     }
     if (keysPressed.current.has('s')) {
-      updatePlayerPosition('player1', { z: player1.position.z + 0.1 })
+      updatePlayerPosition('player1', { z: player1.position.z + playerConfig.moveSpeed })
     }
     if (keysPressed.current.has('a')) {
-      updatePlayerRotation('player1', player1.rotation + 0.05)
+      updatePlayerRotation('player1', player1.rotation + playerConfig.rotationSpeed)
     }
     if (keysPressed.current.has('d')) {
-      updatePlayerRotation('player1', player1.rotation - 0.05)
+      updatePlayerRotation('player1', player1.rotation - playerConfig.rotationSpeed)
     }
 
     // Player 2 controls (Arrow keys)
     if (keysPressed.current.has('arrowup')) {
-      updatePlayerPosition('player2', { z: player2.position.z - 0.1 })
+      updatePlayerPosition('player2', { z: player2.position.z - playerConfig.moveSpeed })
     }
     if (keysPressed.current.has('arrowdown')) {
-      updatePlayerPosition('player2', { z: player2.position.z + 0.1 })
+      updatePlayerPosition('player2', { z: player2.position.z + playerConfig.moveSpeed })
     }
     if (keysPressed.current.has('arrowleft')) {
-      updatePlayerRotation('player2', player2.rotation + 0.05)
+      updatePlayerRotation('player2', player2.rotation + playerConfig.rotationSpeed)
     }
     if (keysPressed.current.has('arrowright')) {
-      updatePlayerRotation('player2', player2.rotation - 0.05)
+      updatePlayerRotation('player2', player2.rotation - playerConfig.rotationSpeed)
     }
 
     // Update bullets
@@ -102,8 +103,8 @@ function GameScene() {
     // Remove bullets that are out of bounds
     bullets.forEach((bullet) => {
       if (
-        Math.abs(bullet.position.x) > 35 ||
-        Math.abs(bullet.position.z) > 35
+        Math.abs(bullet.position.x) > bulletConfig.boundaryLimits.standard.x ||
+        Math.abs(bullet.position.z) > bulletConfig.boundaryLimits.standard.z
       ) {
         removeBullet(bullet.id)
       }

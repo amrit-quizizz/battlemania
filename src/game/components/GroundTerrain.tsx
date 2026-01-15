@@ -1,24 +1,26 @@
 import { RigidBody } from '@react-three/rapier'
 import { useGLTF } from '@react-three/drei'
+import { environmentConfig, modelScalesConfig } from '../config/gameConfig'
 
 function GroundTerrain() {
   const road = useGLTF('/models/Road Bits.glb')
   const path = useGLTF('/models/Path Straight.glb')
+  const { terrain } = environmentConfig
 
   return (
     <>
       {/* Main ground plane with physics */}
-      <RigidBody type="fixed" position={[0, -2, 0]}>
+      <RigidBody type="fixed" position={terrain.mainPosition}>
         <mesh receiveShadow>
-          <boxGeometry args={[200, 4, 20]} />
-          <meshStandardMaterial color="#654321" />
+          <boxGeometry args={terrain.mainSize} />
+          <meshStandardMaterial color={terrain.mainColor} />
         </mesh>
       </RigidBody>
 
       {/* Road sections */}
-      {[...Array(10)].map((_, i) => (
-        <group key={`road-${i}`} position={[i * 10 - 50, 0, 0]}>
-          <primitive object={road.scene.clone()} scale={2} />
+      {[...Array(terrain.roadSectionCount)].map((_, i) => (
+        <group key={`road-${i}`} position={[i * terrain.roadSectionSpacing - 50, 0, 0]}>
+          <primitive object={road.scene.clone()} scale={modelScalesConfig.road.bits} />
         </group>
       ))}
 
@@ -28,19 +30,14 @@ function GroundTerrain() {
       </group>
 
       {/* Hills and terrain variation */}
-      <RigidBody type="fixed" position={[-20, -1, -10]}>
-        <mesh receiveShadow castShadow>
-          <sphereGeometry args={[8, 16, 16]} />
-          <meshStandardMaterial color="#8B7355" />
-        </mesh>
-      </RigidBody>
-
-      <RigidBody type="fixed" position={[30, -1, -12]}>
-        <mesh receiveShadow castShadow>
-          <sphereGeometry args={[10, 16, 16]} />
-          <meshStandardMaterial color="#8B7355" />
-        </mesh>
-      </RigidBody>
+      {terrain.hills.map((hill, i) => (
+        <RigidBody key={`hill-${i}`} type="fixed" position={hill.position}>
+          <mesh receiveShadow castShadow>
+            <sphereGeometry args={[hill.radius, hill.segments, hill.segments]} />
+            <meshStandardMaterial color={hill.color} />
+          </mesh>
+        </RigidBody>
+      ))}
     </>
   )
 }

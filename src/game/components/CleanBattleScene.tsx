@@ -2,6 +2,16 @@ import { useRef, Suspense, useEffect, useState, useCallback } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { RigidBody, RapierRigidBody } from '@react-three/rapier'
 import { useGLTF } from '@react-three/drei'
+import { 
+  modelScalesConfig, 
+  bulletConfig, 
+  playerConfig, 
+  physicsConfig, 
+  environmentConfig, 
+  lightingConfig,
+  animationConfig,
+  visualEffectsConfig
+} from '../config/gameConfig'
 import * as THREE from 'three'
 
 // Model paths - using models from public/models
@@ -35,24 +45,24 @@ Object.values(MODELS).forEach(path => {
   }
 })
 
-// Scale constants - optimized for better visibility
+// Scale constants - now using config
 const SCALES = {
-  tank: 0.2,        // Smaller tanks
-  cloud: 18,       // Larger clouds
-  clouds: 18,      // Cloud group scale
-  sun: 1,         // Larger sun
-  ground: 0.5,      // Ground scale
-  tree: 0.4,        // Tree scale
-  road: 2.0,        // Road bits scale
-  pathStraight: [40, 8, 5], // Path Straight scale - larger road
-  turretGun: 2.5,   // Turret gun scale - optimized for visibility
-  truck: 0.4,       // Truck scale - optimized for visibility
-  skyscraper: 2.0,  // Skyscraper scale for background
-  largeBuilding: 1.5, // Large building scale for background
-  castle: 1.8,     // Castle scale for background
-  barracks: 1.2,   // Barracks scale for background
-  fortress: 1.5,   // Fortress scale for background
-  bullet: 0.08      // Bullet scale - may need adjustment based on model size
+  tank: modelScalesConfig.tank.standard,
+  cloud: modelScalesConfig.cloud.large,
+  clouds: modelScalesConfig.cloud.large,
+  sun: modelScalesConfig.sun.standard,
+  ground: modelScalesConfig.ground,
+  tree: modelScalesConfig.tree.standard,
+  road: modelScalesConfig.road.bits,
+  pathStraight: modelScalesConfig.road.pathStraight,
+  turretGun: modelScalesConfig.buildings.turretGun,
+  truck: modelScalesConfig.vehicles.truck,
+  skyscraper: modelScalesConfig.buildings.skyscraper,
+  largeBuilding: modelScalesConfig.buildings.largeBuilding,
+  castle: modelScalesConfig.buildings.castle,
+  barracks: modelScalesConfig.buildings.barracks,
+  fortress: modelScalesConfig.buildings.fortress,
+  bullet: modelScalesConfig.bullet.standard
 }
 
 // Safe model loader with better error handling
@@ -83,7 +93,7 @@ function SafeModel({ modelPath, scale = 1 }: { modelPath: string, scale?: number
   return (
     <mesh castShadow receiveShadow>
       <boxGeometry args={[size * 2, size, size * 3]} />
-      <meshStandardMaterial color="#87CEEB" />
+      <meshStandardMaterial color={environmentConfig.sky.primaryColor} />
     </mesh>
   )
 }
@@ -105,13 +115,13 @@ function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }:
     // Move bullet
     const pos = bulletRef.current.translation()
     bulletRef.current.setTranslation({
-      x: pos.x + velocity.x * delta * 10,
-      y: pos.y + velocity.y * delta * 10,
+      x: pos.x + velocity.x * delta * bulletConfig.velocityMultiplier,
+      y: pos.y + velocity.y * delta * bulletConfig.velocityMultiplier,
       z: pos.z
     }, true)
 
     // Remove bullet if it goes off screen
-    if (Math.abs(pos.x) > 25 || Math.abs(pos.y) > 20) {
+    if (Math.abs(pos.x) > bulletConfig.boundaryLimits.sideScroll.x || Math.abs(pos.y) > bulletConfig.boundaryLimits.sideScroll.y) {
       setActive(false)
       onHit?.({ hitTankHandle: undefined, firingDirection })
     }
@@ -137,13 +147,13 @@ function Bullet({ position, velocity, onHit, ownerTankHandle, firingDirection }:
     >
       <Suspense fallback={
         <mesh castShadow>
-          <sphereGeometry args={[0.15, 8, 8]} />
+          <sphereGeometry args={bulletConfig.geometrySizes.medium} />
           <meshStandardMaterial
-            color="#ffaa00"
-            emissive="#ff6600"
-            emissiveIntensity={0.8}
-            metalness={0.8}
-            roughness={0.2}
+            color={bulletConfig.materialColor}
+            emissive={bulletConfig.materialEmissive}
+            emissiveIntensity={bulletConfig.materialEmissiveIntensity}
+            metalness={visualEffectsConfig.materials.metalness}
+            roughness={visualEffectsConfig.materials.roughness}
           />
         </mesh>
       }>
@@ -163,7 +173,7 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
   const keysPressed = useRef<Set<string>>(new Set())
   const [bullets, setBullets] = useState<Array<{ id: number, position: [number, number, number], velocity: { x: number, y: number }, ownerTankHandle?: number, firingDirection: { x: number; y: number } }>>([])
   const lastFireTime = useRef<number>(0)
-  const fireCooldown = 500 // milliseconds between shots
+  const fireCooldown = bulletConfig.fireCooldown
 
   // Rotate both tanks 180 degrees from default, then adjust so they face each other
   // Player 1 (left) faces right (towards center): 0 + Math.PI = Math.PI
@@ -178,18 +188,18 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
     // Player 1 faces right (facing = Math.PI), so fire right (+x direction)
     // Player 2 faces left (facing = 0), so fire left (-x direction)
     const direction = player === 'player1' ? 1 : -1
-    const bulletOffset = direction * 1.5 // Increased offset to clear tank collision bounds
+    const bulletOffset = direction * bulletConfig.forwardOffset
     const tankHandle = tankRef.current.handle
     const firingDirection = { x: direction, y: 0 }
     const newBullet = {
       id: Date.now() + Math.random(), // Ensure unique ID
       position: [
         tankPos.x + bulletOffset, // Offset forward from tank
-        tankPos.y + 0.5, // Offset upward for cannon height
+        tankPos.y + bulletConfig.verticalOffset, // Offset upward for cannon height
         tankPos.z
       ] as [number, number, number],
       velocity: { 
-        x: direction * 2, // Fire speed - reduced for visibility
+        x: direction * bulletConfig.speedSideScroll, // Fire speed
         y: 0 
       },
       ownerTankHandle: tankHandle,
@@ -204,10 +214,10 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
 
       // Jump
       if (player === 'player1' && e.key === 'w' && tankRef.current) {
-        tankRef.current.applyImpulse({ x: 0, y: 0.8, z: 0 }, true)
+        tankRef.current.applyImpulse({ x: 0, y: playerConfig.jumpImpulse, z: 0 }, true)
       }
       if (player === 'player2' && e.key === 'ArrowUp' && tankRef.current) {
-        tankRef.current.applyImpulse({ x: 0, y: 0.8, z: 0 }, true)
+        tankRef.current.applyImpulse({ x: 0, y: playerConfig.jumpImpulse, z: 0 }, true)
       }
 
       // Fire (Space for P1, Enter for P2) - prevent key repeat
@@ -239,11 +249,11 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
 
     let moveX = 0
     if (player === 'player1') {
-      if (keysPressed.current.has('a')) moveX = -1.5
-      if (keysPressed.current.has('d')) moveX = 1.5
+      if (keysPressed.current.has('a')) moveX = -playerConfig.horizontalMoveSpeed
+      if (keysPressed.current.has('d')) moveX = playerConfig.horizontalMoveSpeed
     } else {
-      if (keysPressed.current.has('arrowleft')) moveX = -1.5
-      if (keysPressed.current.has('arrowright')) moveX = 1.5
+      if (keysPressed.current.has('arrowleft')) moveX = -playerConfig.horizontalMoveSpeed
+      if (keysPressed.current.has('arrowright')) moveX = playerConfig.horizontalMoveSpeed
     }
 
     if (moveX !== 0) {
@@ -257,9 +267,9 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
         ref={tankRef}
         position={position}
         colliders="hull"
-        mass={3}
-        friction={0.8}
-        restitution={0.1}
+        mass={physicsConfig.tankMass}
+        friction={physicsConfig.friction}
+        restitution={physicsConfig.restitution}
       >
         <group ref={tankGroupRef} scale={SCALES.tank} rotation={[0, facing, 0]}>
           <Suspense fallback={
@@ -268,26 +278,26 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
               <meshStandardMaterial color={player === 'player1' ? '#4a6fa5' : '#a54a4a'} />
             </mesh>
           }>
-            <SafeModel modelPath={MODELS.tank} scale={1.2} />
+            <SafeModel modelPath={MODELS.tank} scale={modelScalesConfig.tank.large * 2.4} />
           </Suspense>
 
           {/* Team indicator bar - more visible */}
-          <mesh position={[0, 2.5, 0]} castShadow>
-            <boxGeometry args={[2, 0.3, 0.3]} />
+          <mesh position={playerConfig.teamIndicatorPositions.elevated} castShadow>
+            <boxGeometry args={playerConfig.teamIndicatorGeometry} />
             <meshStandardMaterial
-              color={player === 'player1' ? '#0066ff' : '#ff0066'}
-              emissive={player === 'player1' ? '#0066ff' : '#ff0066'}
-              emissiveIntensity={0.6}
+              color={player === 'player1' ? playerConfig.player1Color : playerConfig.player2Color}
+              emissive={player === 'player1' ? playerConfig.player1Color : playerConfig.player2Color}
+              emissiveIntensity={visualEffectsConfig.emissive.medium}
             />
           </mesh>
 
           {/* Player label */}
           <mesh position={[0, 3.2, 0]}>
-            <boxGeometry args={[1.2, 0.4, 0.1]} />
+            <boxGeometry args={playerConfig.teamIndicatorGeometries.label} />
             <meshStandardMaterial
               color="#ffffff"
-              emissive={player === 'player1' ? '#0066ff' : '#ff0066'}
-              emissiveIntensity={0.3}
+              emissive={player === 'player1' ? playerConfig.player1Color : playerConfig.player2Color}
+              emissiveIntensity={visualEffectsConfig.emissive.low}
             />
           </mesh>
         </group>
@@ -313,23 +323,21 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
 
 // Road Component - Uses Path Straight model, tiled to cover entire road
 function Road({ roadY }: { roadY: number }) {
-  // Number of Path Straight segments to cover the full road width
-  const numSegments = 10 // More segments for full coverage
-  const segmentSpacing = 3.0 // Spacing between segments (adjusted for larger scale)
+  const { road } = environmentConfig
 
   return (
     <>
       {/* Ground below road */}
       <RigidBody type="fixed" position={[0, roadY - 0.5, 0]}>
         <mesh receiveShadow>
-          <boxGeometry args={[35, 1, 12]} />
-          <meshStandardMaterial color="#8B7355" roughness={1} />
+          <boxGeometry args={road.groundDimensions} />
+          <meshStandardMaterial color={road.groundColor} roughness={visualEffectsConfig.materials.roughnessAlternative} />
         </mesh>
       </RigidBody>
 
       {/* Path Straight segments - Tiled to form continuous road */}
-      {[...Array(numSegments)].map((_, i) => {
-        const xPosition = (i - (numSegments - 1) / 2) * segmentSpacing
+      {[...Array(road.segmentCount)].map((_, i) => {
+        const xPosition = (i - (road.segmentCount - 1) / 2) * road.segmentSpacing
         return (
           <RigidBody 
             key={`path-segment-${i}`} 
@@ -339,7 +347,7 @@ function Road({ roadY }: { roadY: number }) {
             <Suspense fallback={
               <mesh receiveShadow castShadow>
                 <boxGeometry args={[3.5, 2, 10]} />
-                <meshStandardMaterial color="#87CEEB" />
+                <meshStandardMaterial color={environmentConfig.sky.primaryColor} />
               </mesh>
             }>
               <SafeModel modelPath={MODELS.pathStraight} scale={SCALES.pathStraight} />
@@ -358,16 +366,17 @@ function Clouds() {
 
   useFrame((state) => {
     const time = state.clock.elapsedTime
+    const { clouds: cloudAnim } = animationConfig
     
     // Slow drifting clouds
     if (cloud2Ref.current) {
-      cloud2Ref.current.position.x = Math.cos(time * 0.025) * 2.5
-      cloud2Ref.current.position.y = 2.8 + Math.cos(time * 0.04) * 0.15
+      cloud2Ref.current.position.x = Math.cos(time * cloudAnim.cloud1Speed) * cloudAnim.cloud1AmplitudeX
+      cloud2Ref.current.position.y = cloudAnim.cloud1YBase + Math.cos(time * cloudAnim.cloud1YSpeed) * cloudAnim.cloud1AmplitudeY
     }
     
     if (cloud5Ref.current) {
-      cloud5Ref.current.position.x = Math.sin(time * 0.028) * 1.8 + 7
-      cloud5Ref.current.position.y = 2.4 + Math.cos(time * 0.05) * 0.15
+      cloud5Ref.current.position.x = Math.sin(time * cloudAnim.cloud2Speed) * cloudAnim.cloud2AmplitudeX + cloudAnim.cloud2XOffset
+      cloud5Ref.current.position.y = cloudAnim.cloud2YBase + Math.cos(time * cloudAnim.cloud2YSpeed) * cloudAnim.cloud2AmplitudeY
     }
   })
 
@@ -376,7 +385,7 @@ function Clouds() {
       {/* Main clouds - positioned behind sky layers to avoid clipping */}
 
       {/* Cloud 1 - Left-center, higher up */}
-      <group ref={cloud2Ref} position={[-2, 5, -3]}>
+      <group ref={cloud2Ref} position={animationConfig.clouds.positions.cloud1}>
         <Suspense fallback={
           <mesh>
             <sphereGeometry args={[2, 16, 16]} />
@@ -389,14 +398,14 @@ function Clouds() {
 
 
       {/* Cloud 2 - Right side, spread out */}
-      <group ref={cloud5Ref} position={[6, 2, -4]}>
+      <group ref={cloud5Ref} position={animationConfig.clouds.positions.cloud2}>
         <Suspense fallback={
           <mesh>
             <sphereGeometry args={[1.4, 16, 16]} />
             <meshBasicMaterial color="#ffffff" opacity={1} transparent />
           </mesh>
         }>
-          <SafeModel modelPath={MODELS.clouds} scale={SCALES.clouds * 0.8} />
+          <SafeModel modelPath={MODELS.clouds} scale={SCALES.clouds * modelScalesConfig.cloud.medium} />
         </Suspense>
       </group>
     </>
@@ -442,7 +451,7 @@ function BackgroundBuildings({ roadY }: { roadY: number }) {
 function CleanBattleScene() {
   // Road position - lowered significantly to eliminate brown space at bottom
   // With camera at y=-2.5 and fov=60, road positioned to fill viewport
-  const roadY = -5.8
+  const roadY = environmentConfig.road.yPosition
   
   // Refs to store both tank RigidBody references for collision effects
   const player1TankRef = useRef<RapierRigidBody>(null)
@@ -452,10 +461,9 @@ function CleanBattleScene() {
   const applyRecoilEffect = useCallback((tankRef: React.RefObject<RapierRigidBody | null>, firingDirection: { x: number; y: number }) => {
     if (!tankRef.current) return
     
-    const recoilForce = 0.8 // Adjustable magnitude
     // Recoil is in negative direction of bullet (opposite to firing direction)
     tankRef.current.applyImpulse({
-      x: -firingDirection.x * recoilForce,
+      x: -firingDirection.x * physicsConfig.recoilForce,
       y: 0,
       z: 0
     }, true)
@@ -468,15 +476,15 @@ function CleanBattleScene() {
     // Apply upward impulse to lift tank
     tankRef.current.applyImpulse({
       x: 0,
-      y: 1.2, // Upward force
+      y: physicsConfig.shakeUpwardImpulse,
       z: 0
     }, true)
 
     // Apply rotation for shake/destabilization effect
     tankRef.current.applyTorqueImpulse({
-      x: (Math.random() - 0.5) * 0.3, // Random rotation on X axis
+      x: (Math.random() - 0.5) * physicsConfig.shakeTorqueRange,
       y: 0,
-      z: (Math.random() - 0.5) * 0.3  // Random rotation on Z axis
+      z: (Math.random() - 0.5) * physicsConfig.shakeTorqueRange
     }, true)
   }, [])
 
@@ -537,15 +545,15 @@ function CleanBattleScene() {
 
       {/* SKY BACKGROUND - Large plane positioned forward to avoid gray rendering issues */}
       {/* Moved forward (less negative Z) to stay within camera view and avoid fog rendering problems */}
-      <mesh position={[0, 0, -5]}>
-        <planeGeometry args={[500, 1000]} />
-        <meshBasicMaterial color="#87CEEB" />
+      <mesh position={environmentConfig.skyPlanes.mainPosition}>
+        <planeGeometry args={environmentConfig.skyPlanes.mainSize} />
+        <meshBasicMaterial color={environmentConfig.sky.primaryColor} />
       </mesh>
 
       {/* Additional sky layers for depth - positioned forward to match main sky */}
-      <mesh position={[0, 15, -10]}>
-        <planeGeometry args={[300, 280]} />
-        <meshBasicMaterial color="#B0E0E6" opacity={0.4} transparent />
+      <mesh position={environmentConfig.skyPlanes.layerPosition}>
+        <planeGeometry args={environmentConfig.skyPlanes.layerSize} />
+        <meshBasicMaterial color={environmentConfig.sky.secondaryColor} opacity={environmentConfig.skyPlanes.layerOpacity} transparent />
       </mesh>
 
       {/* SUN - Positioned prominently in background with enhanced visibility */}
@@ -553,21 +561,21 @@ function CleanBattleScene() {
         <Suspense fallback={
           <mesh>
             <sphereGeometry args={[0.8]} />
-            <meshBasicMaterial color="#FFD700" />
+            <meshBasicMaterial color={visualEffectsConfig.sunGlow.innerColor} />
           </mesh>
         }>
-          <SafeModel modelPath={MODELS.sun} scale={SCALES.sun * 1.5} />
+          <SafeModel modelPath={MODELS.sun} scale={SCALES.sun * modelScalesConfig.sun.large} />
         </Suspense>
         {/* Sun light - stronger and more visible */}
-        <pointLight intensity={1} color="#ffaa00" distance={25} />
+        <pointLight intensity={lightingConfig.pointLight.intensity} color={lightingConfig.pointLight.color} distance={lightingConfig.pointLight.distance} />
         {/* Sun glow effect - multiple layers */}
         <mesh>
-          <sphereGeometry args={[1.0]} />
-          <meshBasicMaterial color="#FFD700" opacity={0.4} transparent />
+          <sphereGeometry args={[visualEffectsConfig.sunGlow.innerRadius]} />
+          <meshBasicMaterial color={visualEffectsConfig.sunGlow.innerColor} opacity={visualEffectsConfig.sunGlow.innerOpacity} transparent />
         </mesh>
         <mesh>
-          <sphereGeometry args={[1.3]} />
-          <meshBasicMaterial color="#FFE55C" opacity={0.2} transparent />
+          <sphereGeometry args={[visualEffectsConfig.sunGlow.outerRadius]} />
+          <meshBasicMaterial color={visualEffectsConfig.sunGlow.outerColor} opacity={visualEffectsConfig.sunGlow.outerOpacity} transparent />
         </mesh>
       </group>
 
@@ -619,41 +627,41 @@ function CleanBattleScene() {
 
       {/* ENHANCED LIGHTING - More realistic lighting setup */}
       {/* Ambient light for overall illumination - brighter */}
-      <ambientLight intensity={0.7} color="#ffffff" />
+      <ambientLight intensity={lightingConfig.ambientIntensity} color={lightingConfig.ambientColor} />
       
       {/* Main directional light from sun position - stronger */}
       <directionalLight
-        position={[7, 6, -5]}
-        intensity={1.0}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-far={50}
-        shadow-camera-left={-15}
-        shadow-camera-right={15}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
-        shadow-bias={-0.0001}
+        position={lightingConfig.directionalSun.position}
+        intensity={lightingConfig.directionalSun.intensity}
+        castShadow={lightingConfig.directionalSun.castShadow}
+        shadow-mapSize={lightingConfig.directionalSun.shadowMapSize}
+        shadow-camera-far={lightingConfig.directionalSun.shadowCamera.far}
+        shadow-camera-left={lightingConfig.directionalSun.shadowCamera.left}
+        shadow-camera-right={lightingConfig.directionalSun.shadowCamera.right}
+        shadow-camera-top={lightingConfig.directionalSun.shadowCamera.top}
+        shadow-camera-bottom={lightingConfig.directionalSun.shadowCamera.bottom}
+        shadow-bias={lightingConfig.directionalSun.shadowCamera.bias}
       />
       
       {/* Fill light from opposite side - warmer tone */}
       <directionalLight
-        position={[-5, 4, 5]}
-        intensity={0.4}
-        color="#e0e8f0"
+        position={lightingConfig.directionalFillWarm.position}
+        intensity={lightingConfig.directionalFillWarm.intensity}
+        color={lightingConfig.directionalFillWarm.color}
       />
       
       {/* Rim light for depth */}
       <directionalLight
-        position={[0, 8, 5]}
-        intensity={0.25}
-        color="#ffffff"
+        position={lightingConfig.directionalRim.position}
+        intensity={lightingConfig.directionalRim.intensity}
+        color={lightingConfig.directionalRim.color}
       />
       
       {/* Additional subtle light from above */}
       <directionalLight
-        position={[0, 10, 0]}
-        intensity={0.15}
-        color="#ffffff"
+        position={lightingConfig.directionalTop.position}
+        intensity={lightingConfig.directionalTop.intensity}
+        color={lightingConfig.directionalTop.color}
       />
     </>
   )

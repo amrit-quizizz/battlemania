@@ -1,69 +1,73 @@
+import { environmentConfig } from '../config/gameConfig'
+
 function Platform() {
+  const { platform, boundaries } = environmentConfig
+  
   return (
     <>
       {/* Main platform - much larger for bigger tanks */}
-      <mesh receiveShadow position={[0, -1, 0]}>
-        <boxGeometry args={[60, 2, 60]} />
-        <meshStandardMaterial color="#8B7355" />
+      <mesh receiveShadow position={platform.mainPosition}>
+        <boxGeometry args={platform.mainSize} />
+        <meshStandardMaterial color={platform.mainColor} />
       </mesh>
 
       {/* Elevated platforms for 2.5D effect - scaled up */}
-      <mesh receiveShadow castShadow position={[-20, 1.5, -20]}>
-        <boxGeometry args={[12, 5, 12]} />
-        <meshStandardMaterial color="#A0826D" />
+      <mesh receiveShadow castShadow position={[-20, platform.elevatedHeight, -20]}>
+        <boxGeometry args={platform.elevatedSize} />
+        <meshStandardMaterial color={platform.colors.elevated} />
       </mesh>
 
-      <mesh receiveShadow castShadow position={[20, 1.5, -20]}>
-        <boxGeometry args={[12, 5, 12]} />
-        <meshStandardMaterial color="#A0826D" />
+      <mesh receiveShadow castShadow position={[20, platform.elevatedHeight, -20]}>
+        <boxGeometry args={platform.elevatedSize} />
+        <meshStandardMaterial color={platform.colors.elevated} />
       </mesh>
 
-      <mesh receiveShadow castShadow position={[-20, 1.5, 20]}>
-        <boxGeometry args={[12, 5, 12]} />
-        <meshStandardMaterial color="#A0826D" />
+      <mesh receiveShadow castShadow position={[-20, platform.elevatedHeight, 20]}>
+        <boxGeometry args={platform.elevatedSize} />
+        <meshStandardMaterial color={platform.colors.elevated} />
       </mesh>
 
-      <mesh receiveShadow castShadow position={[20, 1.5, 20]}>
-        <boxGeometry args={[12, 5, 12]} />
-        <meshStandardMaterial color="#A0826D" />
+      <mesh receiveShadow castShadow position={[20, platform.elevatedHeight, 20]}>
+        <boxGeometry args={platform.elevatedSize} />
+        <meshStandardMaterial color={platform.colors.elevated} />
       </mesh>
 
       {/* Central obstacle - larger */}
-      <mesh receiveShadow castShadow position={[0, 2, 0]}>
-        <boxGeometry args={[8, 6, 8]} />
-        <meshStandardMaterial color="#696969" />
+      <mesh receiveShadow castShadow position={[0, platform.obstacleHeight, 0]}>
+        <boxGeometry args={platform.obstacleSize} />
+        <meshStandardMaterial color={platform.colors.obstacle} />
       </mesh>
 
       {/* Additional cover objects */}
-      <mesh receiveShadow castShadow position={[-10, 1, 0]}>
-        <boxGeometry args={[4, 4, 4]} />
-        <meshStandardMaterial color="#7A7A7A" />
+      <mesh receiveShadow castShadow position={[-10, platform.coverHeight, 0]}>
+        <boxGeometry args={platform.coverSize} />
+        <meshStandardMaterial color={platform.colors.cover} />
       </mesh>
 
-      <mesh receiveShadow castShadow position={[10, 1, 0]}>
-        <boxGeometry args={[4, 4, 4]} />
-        <meshStandardMaterial color="#7A7A7A" />
+      <mesh receiveShadow castShadow position={[10, platform.coverHeight, 0]}>
+        <boxGeometry args={platform.coverSize} />
+        <meshStandardMaterial color={platform.colors.cover} />
       </mesh>
 
       {/* Side walls for boundaries - scaled up */}
-      <mesh receiveShadow castShadow position={[-31, 5, 0]}>
-        <boxGeometry args={[2, 12, 62]} />
-        <meshStandardMaterial color="#505050" />
+      <mesh receiveShadow castShadow position={[boundaries.leftX, boundaries.height / 2, 0]}>
+        <boxGeometry args={[boundaries.thickness, boundaries.height, boundaries.wallDepth]} />
+        <meshStandardMaterial color={boundaries.color} />
       </mesh>
 
-      <mesh receiveShadow castShadow position={[31, 5, 0]}>
-        <boxGeometry args={[2, 12, 62]} />
-        <meshStandardMaterial color="#505050" />
+      <mesh receiveShadow castShadow position={[boundaries.rightX, boundaries.height / 2, 0]}>
+        <boxGeometry args={[boundaries.thickness, boundaries.height, boundaries.wallDepth]} />
+        <meshStandardMaterial color={boundaries.color} />
       </mesh>
 
-      <mesh receiveShadow castShadow position={[0, 5, -31]}>
-        <boxGeometry args={[62, 12, 2]} />
-        <meshStandardMaterial color="#505050" />
+      <mesh receiveShadow castShadow position={[0, boundaries.height / 2, boundaries.frontZ]}>
+        <boxGeometry args={[boundaries.wallWidth, boundaries.height, boundaries.thickness]} />
+        <meshStandardMaterial color={boundaries.color} />
       </mesh>
 
-      <mesh receiveShadow castShadow position={[0, 5, 31]}>
-        <boxGeometry args={[62, 12, 2]} />
-        <meshStandardMaterial color="#505050" />
+      <mesh receiveShadow castShadow position={[0, boundaries.height / 2, boundaries.backZ]}>
+        <boxGeometry args={[boundaries.wallWidth, boundaries.height, boundaries.thickness]} />
+        <meshStandardMaterial color={boundaries.color} />
       </mesh>
     </>
   )

@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { Mesh } from 'three'
+import { bulletConfig, visualEffectsConfig } from '../config/gameConfig'
 
 interface BulletProps {
   position: [number, number, number]
@@ -16,13 +17,13 @@ function Bullet({ position }: BulletProps) {
 
   return (
     <mesh ref={meshRef} castShadow>
-      <sphereGeometry args={[0.2, 8, 8]} />
+      <sphereGeometry args={bulletConfig.geometrySizes.standard} />
       <meshStandardMaterial
-        color="#ffaa00"
-        emissive="#ff6600"
-        emissiveIntensity={0.8}
-        metalness={0.8}
-        roughness={0.2}
+        color={bulletConfig.materialColor}
+        emissive={bulletConfig.materialEmissive}
+        emissiveIntensity={bulletConfig.materialEmissiveIntensity}
+        metalness={visualEffectsConfig.materials.metalness}
+        roughness={visualEffectsConfig.materials.roughness}
       />
     </mesh>
   )

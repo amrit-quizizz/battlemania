@@ -1,6 +1,7 @@
 import { Canvas } from '@react-three/fiber'
 import { OrthographicCamera, Grid } from '@react-three/drei'
 import { Suspense } from 'react'
+import { cameraConfig, lightingConfig, uiConfig } from './config/gameConfig'
 import GameScene from './components/GameScene'
 
 function Game() {
@@ -8,57 +9,57 @@ function Game() {
     <div style={{
       width: '100vw',
       height: '100vh',
-      backgroundColor: '#2a2a2a',
+      backgroundColor: uiConfig.background.main,
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center'
     }}>
       {/* Game container - 75% of viewport */}
       <div style={{
-        width: '85%',
-        height: '85%',
-        backgroundColor: '#87CEEB',
-        borderRadius: '10px',
+        width: uiConfig.container.width,
+        height: uiConfig.container.height,
+        backgroundColor: uiConfig.background.container,
+        borderRadius: uiConfig.container.borderRadius,
         overflow: 'hidden',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+        boxShadow: uiConfig.container.boxShadow,
         position: 'relative'
       }}>
         <Canvas
-          dpr={[1, 2]}
-          gl={{ antialias: false }}
-          style={{ imageRendering: 'pixelated' }}
+          dpr={cameraConfig.dpr}
+          gl={{ antialias: cameraConfig.canvas.antialias }}
+          style={{ imageRendering: cameraConfig.canvas.imageRendering }}
         >
           {/* Orthographic camera for 2.5D view */}
           <OrthographicCamera
             makeDefault
-            position={[0, 25, 20]}
-            zoom={20}
-            near={0.1}
-            far={1000}
-            rotation={[-0.8, 0, 0]}
+            position={cameraConfig.orthographic.position}
+            zoom={cameraConfig.orthographic.zoom}
+            near={cameraConfig.orthographic.near}
+            far={cameraConfig.orthographic.far}
+            rotation={cameraConfig.orthographic.rotation}
           />
 
           {/* Ambient lighting - brighter */}
-          <ambientLight intensity={0.8} />
+          <ambientLight intensity={lightingConfig.ambientIntensityAlternative} />
 
           {/* Directional light for shadows and depth */}
           <directionalLight
-            position={[10, 20, 10]}
-            intensity={1.2}
-            castShadow
-            shadow-mapSize-width={2048}
-            shadow-mapSize-height={2048}
-            shadow-camera-far={50}
-            shadow-camera-left={-20}
-            shadow-camera-right={20}
-            shadow-camera-top={20}
-            shadow-camera-bottom={-20}
+            position={lightingConfig.directionalMain.position}
+            intensity={lightingConfig.directionalMain.intensity}
+            castShadow={lightingConfig.directionalMain.castShadow}
+            shadow-mapSize-width={lightingConfig.directionalMain.shadowMapSize[0]}
+            shadow-mapSize-height={lightingConfig.directionalMain.shadowMapSize[1]}
+            shadow-camera-far={lightingConfig.directionalMain.shadowCameraFar}
+            shadow-camera-left={lightingConfig.directionalMain.shadowCameraLeft}
+            shadow-camera-right={lightingConfig.directionalMain.shadowCameraRight}
+            shadow-camera-top={lightingConfig.directionalMain.shadowCameraTop}
+            shadow-camera-bottom={lightingConfig.directionalMain.shadowCameraBottom}
           />
 
           {/* Additional light from front */}
           <directionalLight
-            position={[-10, 15, 15]}
-            intensity={0.5}
+            position={lightingConfig.directionalFill.position}
+            intensity={lightingConfig.directionalFill.intensity}
           />
 
           {/* Grid helper for development */}
@@ -80,12 +81,12 @@ function Game() {
         {/* HUD Overlay */}
         <div style={{
           position: 'absolute',
-          top: '20px',
-          left: '20px',
-          color: 'white',
-          fontSize: '16px',
-          fontFamily: 'monospace',
-          textShadow: '2px 2px 4px rgba(0,0,0,0.5)'
+          top: uiConfig.hud.topLeft.top,
+          left: uiConfig.hud.topLeft.left,
+          color: uiConfig.text.color,
+          fontSize: uiConfig.fonts.standardSize,
+          fontFamily: uiConfig.fonts.family,
+          textShadow: uiConfig.text.shadowAlternative
         }}>
           <div>Player 1: WASD to move, Space to fire</div>
           <div>Player 2: Arrow keys to move, Enter to fire</div>
@@ -94,13 +95,13 @@ function Game() {
         {/* Game Title */}
         <div style={{
           position: 'absolute',
-          top: '20px',
-          right: '20px',
-          color: 'white',
-          fontSize: '24px',
-          fontWeight: 'bold',
-          fontFamily: 'monospace',
-          textShadow: '2px 2px 4px rgba(0,0,0,0.5)'
+          top: uiConfig.hud.topRight.top,
+          right: uiConfig.hud.topRight.right,
+          color: uiConfig.text.color,
+          fontSize: uiConfig.fonts.titleSize,
+          fontWeight: uiConfig.fonts.titleWeight,
+          fontFamily: uiConfig.fonts.family,
+          textShadow: uiConfig.text.shadowAlternative
         }}>
           Battle Mania
         </div>
