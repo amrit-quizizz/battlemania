@@ -43,6 +43,30 @@ export interface VisualEffectsConfig {
     /** Outer glow color */
     outerColor: string
   }
+  
+  /** Smoke effect configuration */
+  smoke: {
+    /** Number of particles per smoke effect */
+    particleCount: number
+    /** Minimum particle size */
+    particleSizeMin: number
+    /** Maximum particle size */
+    particleSizeMax: number
+    /** Initial upward velocity */
+    riseSpeed: number
+    /** Horizontal spread velocity range */
+    spreadSpeed: number
+    /** Particle lifetime in seconds */
+    lifetime: number
+    /** Starting color (hex) */
+    startColor: string
+    /** Ending color (hex) - lighter as it rises */
+    endColor: string
+    /** Starting opacity */
+    startOpacity: number
+    /** Maximum concurrent smoke effects */
+    maxConcurrent: number
+  }
 }
 
 /**
@@ -68,5 +92,17 @@ export const visualEffectsConfig: VisualEffectsConfig = {
     outerRadius: 1.3,
     outerOpacity: 0.2,
     outerColor: '#FFE55C'
+  },
+  smoke: {
+    particleCount: 60,
+    particleSizeMin: 0.02,
+    particleSizeMax: 0.05,
+    riseSpeed: 1.5,
+    spreadSpeed: 0.3,
+    lifetime: 0.8,
+    startColor: '#888888',
+    endColor: '#ffffff',
+    startOpacity: 0.8,
+    maxConcurrent: 5
   }
 }

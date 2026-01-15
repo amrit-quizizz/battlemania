@@ -13,6 +13,7 @@ import {
   visualEffectsConfig
 } from '../config/gameConfig'
 import * as THREE from 'three'
+import SmokeEffect from './SmokeEffect'
 
 // Model paths - using models from public/models
 const MODELS = {
@@ -172,6 +173,7 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
   const tankGroupRef = useRef<THREE.Group>(null)
   const keysPressed = useRef<Set<string>>(new Set())
   const [bullets, setBullets] = useState<Array<{ id: number, position: [number, number, number], velocity: { x: number, y: number }, ownerTankHandle?: number, firingDirection: { x: number; y: number } }>>([])
+  const [smokeEffects, setSmokeEffects] = useState<Array<{ id: number, position: [number, number, number], firingDirection: { x: number; y: number } }>>([])
   const lastFireTime = useRef<number>(0)
   const fireCooldown = bulletConfig.fireCooldown
 
@@ -191,13 +193,17 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
     const bulletOffset = direction * bulletConfig.forwardOffset
     const tankHandle = tankRef.current.handle
     const firingDirection = { x: direction, y: 0 }
+    
+    // Bullet spawn position (same as smoke position)
+    const spawnPosition: [number, number, number] = [
+      tankPos.x + bulletOffset, // Offset forward from tank
+      tankPos.y + bulletConfig.verticalOffset, // Offset upward for cannon height
+      tankPos.z
+    ]
+    
     const newBullet = {
       id: Date.now() + Math.random(), // Ensure unique ID
-      position: [
-        tankPos.x + bulletOffset, // Offset forward from tank
-        tankPos.y + bulletConfig.verticalOffset, // Offset upward for cannon height
-        tankPos.z
-      ] as [number, number, number],
+      position: spawnPosition,
       velocity: { 
         x: direction * bulletConfig.speedSideScroll, // Fire speed
         y: 0 
@@ -206,6 +212,18 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
       firingDirection
     }
     setBullets(prev => [...prev, newBullet])
+    
+    // Spawn smoke effect at nozzle position
+    // Limit concurrent smoke effects for performance
+    const maxSmoke = visualEffectsConfig.smoke.maxConcurrent
+    setSmokeEffects(prev => {
+      const filtered = prev.length >= maxSmoke ? prev.slice(1) : prev
+      return [...filtered, {
+        id: Date.now() + Math.random(),
+        position: spawnPosition,
+        firingDirection
+      }]
+    })
   }, [player, tankRef])
 
   useEffect(() => {
@@ -314,6 +332,18 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
           onHit={(hitData) => {
             setBullets(prev => prev.filter(b => b.id !== bullet.id))
             onBulletHit?.(hitData)
+          }}
+        />
+      ))}
+
+      {/* Render smoke effects */}
+      {smokeEffects.map(smoke => (
+        <SmokeEffect
+          key={smoke.id}
+          position={smoke.position}
+          firingDirection={smoke.firingDirection}
+          onComplete={() => {
+            setSmokeEffects(prev => prev.filter(s => s.id !== smoke.id))
           }}
         />
       ))}
