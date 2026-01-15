@@ -13,12 +13,44 @@ const questionsData = JSON.parse(readFileSync(join(__dirname, 'questions.json'),
 const PORT = process.env.PORT || 3001;
 const WS_PORT = process.env.WS_PORT || 3002;
 
+// Game state machine
+enum GameState {
+  WAITING = 'WAITING',
+  LEVEL_SELECTION = 'LEVEL_SELECTION',
+  ANSWERING_QUESTION = 'ANSWERING_QUESTION',
+  SHOWING_RESULT = 'SHOWING_RESULT',
+  GAME_OVER = 'GAME_OVER'
+}
+
 // Game session types
+interface Question {
+  id: number;
+  level: 'low' | 'medium' | 'hard';
+  points: number;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+}
+
 interface Player {
   id: string;
   name: string;
   ws: WebSocket;
   team: 'A' | 'B';
+}
+
+interface PlayerTurnState {
+  playerId: string;
+  team: 'A' | 'B';
+  hasSelectedLevel: boolean;
+  selectedLevel: 'low' | 'medium' | 'hard' | null;
+  levelSelectionTimestamp: number | null;
+  assignedQuestion: Question | null;
+  hasSubmittedAnswer: boolean;
+  submittedAnswer: number | null;
+  answerSubmissionTimestamp: number | null;
+  isCorrect: boolean | null;
+  pointsEarned: number;
 }
 
 interface GameSession {
@@ -30,11 +62,18 @@ interface GameSession {
   scoreA: number;
   scoreB: number;
   isActive: boolean;
-  levelSelectionTimer?: NodeJS.Timeout | null;
-  questionTimer?: NodeJS.Timeout | null;
-  questionTimerRemaining?: number;
-  currentTurn?: number;
-  playerLevelSelections?: Map<WebSocket, { level: string; question: any; answer?: number }>;
+
+  // State machine fields
+  currentState: GameState;
+
+  // Timer management (timestamp-based)
+  turnStartTimestamp: number | null;
+  totalTurnDuration: number;
+  turnTimerInterval: NodeJS.Timeout | null;
+
+  // Turn data
+  currentTurn: number;
+  playerStates: Map<WebSocket, PlayerTurnState>;
 }
 
 // Store game sessions
@@ -86,136 +125,264 @@ function broadcastGameState(session: GameSession) {
   });
 }
 
-// Start turn phase with single 5 second timer (for level selection + question answering)
-function startLevelSelectionPhase(session: GameSession) {
-  console.log(`Starting level selection phase for game ${session.gameCode}`);
-  
-  // Clear any existing timers
-  if (session.levelSelectionTimer) {
-    clearInterval(session.levelSelectionTimer as any);
-    session.levelSelectionTimer = null;
-  }
-  if (session.questionTimer) {
-    clearInterval(session.questionTimer as any);
-    session.questionTimer = null;
-  }
+// ===== STATE MACHINE HELPER FUNCTIONS =====
 
-  // Initialize player level selections map
-  session.playerLevelSelections = new Map();
-  
-  let timeRemaining = 5; // Single timer for the entire turn
-  session.questionTimerRemaining = timeRemaining;
+function clearTimers(session: GameSession): void {
+  if (session.turnTimerInterval) {
+    clearInterval(session.turnTimerInterval);
+    session.turnTimerInterval = null;
+  }
+}
 
-  // Helper function to send timer updates to all players
-  const sendTimerUpdate = () => {
-    session.questionTimerRemaining = timeRemaining;
-    console.log(`Sending timer update: ${timeRemaining}s to ${session.teamA.length + session.teamB.length} players`);
+function assignRandomLevel(session: GameSession, playerWs: WebSocket): void {
+  const levels: ('low' | 'medium' | 'hard')[] = ['low', 'medium', 'hard'];
+  const randomLevel = levels[Math.floor(Math.random() * levels.length)];
+
+  const playerState = session.playerStates.get(playerWs);
+  if (!playerState) return;
+
+  // Assign random level
+  playerState.hasSelectedLevel = true;
+  playerState.selectedLevel = randomLevel;
+  playerState.levelSelectionTimestamp = Date.now();
+
+  // Get random question for that level
+  const levelQuestions = questionsData.questions.filter((q: any) => q.level === randomLevel);
+  const randomQuestion = levelQuestions[Math.floor(Math.random() * levelQuestions.length)];
+  playerState.assignedQuestion = randomQuestion;
+
+  console.log(`Auto-assigned ${randomLevel} level to player ${playerState.playerId}`);
+}
+
+// ===== TIMER MANAGEMENT FUNCTIONS =====
+
+function startTimerBroadcast(session: GameSession): void {
+  clearTimers(session);
+
+  // Broadcast every 500ms for smooth countdown
+  session.turnTimerInterval = setInterval(() => {
+    const currentTime = Date.now();
+    const elapsedTime = currentTime - session.turnStartTimestamp!;
+    const timeRemainingMs = Math.max(0, session.totalTurnDuration - elapsedTime);
+    const timeRemaining = Math.ceil(timeRemainingMs / 1000);
+
+    // Broadcast to all players
     [...session.teamA, ...session.teamB].forEach(player => {
       if (player.ws.readyState === WebSocket.OPEN) {
         player.ws.send(JSON.stringify({
           type: 'turn_timer',
+          state: session.currentState,
           timeRemaining: timeRemaining,
+          serverTimestamp: currentTime,
+          turnStartTimestamp: session.turnStartTimestamp
         }));
       }
     });
-  };
 
-  // Send game state: level_selection to all players
+    // Check if timer expired
+    if (timeRemainingMs <= 0) {
+      handleTimerExpiry(session);
+    }
+  }, 500);
+}
+
+function handleTimerExpiry(session: GameSession): void {
+  console.log(`Timer expired in state: ${session.currentState}`);
+
+  clearTimers(session);
+
+  if (session.currentState === GameState.LEVEL_SELECTION) {
+    // Players who haven't selected get random level
+    session.playerStates.forEach((playerState, playerWs) => {
+      if (!playerState.hasSelectedLevel) {
+        assignRandomLevel(session, playerWs);
+      }
+    });
+  }
+
+  // Transition to showing result
+  transitionToShowingResult(session);
+}
+
+// ===== RESULT PROCESSING FUNCTIONS =====
+
+function processPlayerResults(session: GameSession): void {
+  session.playerStates.forEach((playerState, playerWs) => {
+    const player = [...session.teamA, ...session.teamB].find(p => p.ws === playerWs);
+    if (!player) return;
+
+    // Case 1: Didn't select level or didn't get a question
+    if (!playerState.hasSelectedLevel || !playerState.assignedQuestion) {
+      playerState.pointsEarned = 0;
+      playerState.isCorrect = null;
+      return;
+    }
+
+    // Case 2: Selected level but didn't answer
+    if (!playerState.hasSubmittedAnswer) {
+      playerState.pointsEarned = 0;
+      playerState.isCorrect = null;
+      return;
+    }
+
+    // Case 3: Submitted answer
+    const question = playerState.assignedQuestion;
+    const isCorrect = playerState.submittedAnswer === question.correctAnswer;
+    playerState.isCorrect = isCorrect;
+
+    if (isCorrect) {
+      // Correct answer: add points to player's team
+      playerState.pointsEarned = question.points;
+      if (player.team === 'A') {
+        session.scoreA += question.points;
+      } else {
+        session.scoreB += question.points;
+      }
+    } else {
+      // Incorrect answer: add points to opposite team
+      playerState.pointsEarned = 0;
+      if (player.team === 'A') {
+        session.scoreB += question.points;
+      } else {
+        session.scoreA += question.points;
+      }
+    }
+  });
+}
+
+function broadcastResults(session: GameSession): void {
+  session.playerStates.forEach((playerState, playerWs) => {
+    if (playerWs.readyState !== WebSocket.OPEN) return;
+
+    let result: 'correct' | 'incorrect' | 'not_attempted';
+    if (playerState.isCorrect === null) {
+      result = 'not_attempted';
+    } else if (playerState.isCorrect) {
+      result = 'correct';
+    } else {
+      result = 'incorrect';
+    }
+
+    playerWs.send(JSON.stringify({
+      type: 'game_state',
+      state: 'SHOWING_RESULT',
+      result: result,
+      correctAnswer: playerState.assignedQuestion?.correctAnswer || null,
+      pointsEarned: playerState.pointsEarned,
+      scoreA: session.scoreA,
+      scoreB: session.scoreB,
+      timestamp: Date.now()
+    }));
+  });
+}
+
+// ===== STATE TRANSITION FUNCTIONS =====
+
+function transitionToLevelSelection(session: GameSession): void {
+  // Guard: Can only transition from WAITING, SHOWING_RESULT
+  if (![GameState.WAITING, GameState.SHOWING_RESULT].includes(session.currentState)) {
+    console.warn(`Invalid transition to LEVEL_SELECTION from ${session.currentState}`);
+    return;
+  }
+
+  clearTimers(session);
+
+  // Update state
+  session.currentState = GameState.LEVEL_SELECTION;
+  session.currentTurn = session.currentTurn + 1;
+  session.turnStartTimestamp = Date.now();
+
+  // Initialize player states
+  session.playerStates = new Map();
+  [...session.teamA, ...session.teamB].forEach(player => {
+    session.playerStates.set(player.ws, {
+      playerId: player.id,
+      team: player.team,
+      hasSelectedLevel: false,
+      selectedLevel: null,
+      levelSelectionTimestamp: null,
+      assignedQuestion: null,
+      hasSubmittedAnswer: false,
+      submittedAnswer: null,
+      answerSubmissionTimestamp: null,
+      isCorrect: null,
+      pointsEarned: 0
+    });
+  });
+
+  // Send game state to all players
   [...session.teamA, ...session.teamB].forEach(player => {
     if (player.ws.readyState === WebSocket.OPEN) {
       player.ws.send(JSON.stringify({
         type: 'game_state',
-        state: 'level_selection',
+        state: 'LEVEL_SELECTION',
         gameCode: session.gameCode,
-        timer: timeRemaining,
         scoreA: session.scoreA,
         scoreB: session.scoreB,
+        turnNumber: session.currentTurn,
+        turnStartTimestamp: session.turnStartTimestamp,
+        totalTurnDuration: session.totalTurnDuration,
+        timestamp: Date.now()
       }));
     }
   });
-  
-  // Send initial timer update immediately (so timer shows 5s right away)
-  sendTimerUpdate();
 
-  const turnTimerInterval = setInterval(() => {
-    timeRemaining--;
-    
-    // Send timer update (including when it reaches 0)
-    sendTimerUpdate();
+  // Start timer broadcast
+  startTimerBroadcast(session);
 
-    if (timeRemaining < 0) {
-      clearInterval(turnTimerInterval);
-      // Timer ended - calculate results and send game_state: result to all players
-      [...session.teamA, ...session.teamB].forEach(player => {
-        if (player.ws.readyState === WebSocket.OPEN) {
-          const playerSelection = session.playerLevelSelections?.get(player.ws);
-          let result = 'not_attempted';
-          let points = 0;
-          let correctAnswer = null;
-          
-          if (playerSelection && playerSelection.question) {
-            // Player selected a level and got a question
-            const question = playerSelection.question;
-            const answer = playerSelection.answer;
-            
-            if (answer !== undefined && answer !== null) {
-              // Check if answer is correct
-              const isCorrect = answer === question.correctAnswer;
-              points = question.points;
-              correctAnswer = question.correctAnswer;
-              
-              // Update scores
-              if (isCorrect) {
-                result = 'correct';
-                // Correct answer - points go to player's team
-                if (player.team === 'A') {
-                  session.scoreA += points;
-                } else {
-                  session.scoreB += points;
-                }
-              } else {
-                result = 'incorrect';
-                // Incorrect answer - points go to opposite team
-                if (player.team === 'A') {
-                  session.scoreB += points;
-                } else {
-                  session.scoreA += points;
-                }
-              }
-            }
-          }
-          
-          // Send game_state: result to player
-          player.ws.send(JSON.stringify({
-            type: 'game_state',
-            state: 'result',
-            result: result,
-            points: result === 'correct' ? points : 0,
-            correctAnswer: correctAnswer,
-            scoreA: session.scoreA,
-            scoreB: session.scoreB,
-          }));
-        }
-      });
-      
-      session.levelSelectionTimer = null;
-      session.questionTimer = null;
-      
-      // Wait 3 seconds before starting next turn (auto cycle)
-      console.log(`Turn ended, waiting 3 seconds before starting next turn for game ${session.gameCode}`);
-      setTimeout(() => {
-        console.log(`Starting next turn for game ${session.gameCode}`);
-        startLevelSelectionPhase(session);
-      }, 3000);
-    }
-  }, 1000);
-
-  session.levelSelectionTimer = turnTimerInterval as any;
-  session.questionTimer = turnTimerInterval as any;
-  session.questionTimerRemaining = timeRemaining;
+  console.log(`Turn ${session.currentTurn}: Transitioned to LEVEL_SELECTION`);
 }
 
-// Question timer is now handled in startLevelSelectionPhase - no separate function needed
+function transitionToShowingResult(session: GameSession): void {
+  // Guard: Can transition from LEVEL_SELECTION or ANSWERING_QUESTION
+  if (![GameState.LEVEL_SELECTION, GameState.ANSWERING_QUESTION].includes(session.currentState)) {
+    console.warn(`Invalid transition to SHOWING_RESULT from ${session.currentState}`);
+    return;
+  }
+
+  clearTimers(session);
+
+  // Update state
+  session.currentState = GameState.SHOWING_RESULT;
+
+  // Process results for all players
+  processPlayerResults(session);
+
+  // Broadcast results to all players
+  broadcastResults(session);
+
+  // Schedule transition to next turn after 3 seconds
+  setTimeout(() => {
+    if (session.currentState === GameState.SHOWING_RESULT && session.isActive) {
+      transitionToLevelSelection(session);
+    }
+  }, 3000);
+
+  console.log(`Turn ${session.currentTurn}: Transitioned to SHOWING_RESULT`);
+}
+
+function transitionToGameOver(session: GameSession): void {
+  clearTimers(session);
+
+  // Update state
+  session.currentState = GameState.GAME_OVER;
+  session.isActive = false;
+
+  // Broadcast final state
+  [...session.teamA, ...session.teamB].forEach(player => {
+    if (player.ws.readyState === WebSocket.OPEN) {
+      player.ws.send(JSON.stringify({
+        type: 'game_state',
+        state: 'GAME_OVER',
+        finalScoreA: session.scoreA,
+        finalScoreB: session.scoreB,
+        timestamp: Date.now()
+      }));
+    }
+  });
+
+  console.log(`Game ${session.gameCode} ended: Team A ${session.scoreA}, Team B ${session.scoreB}`);
+}
 
 wss.on('connection', (ws: WebSocket) => {
   console.log('New WebSocket connection');
@@ -242,6 +409,12 @@ wss.on('connection', (ws: WebSocket) => {
             scoreA: 0,
             scoreB: 0,
             isActive: false,
+            currentState: GameState.WAITING,
+            turnStartTimestamp: null,
+            totalTurnDuration: 15000, // 15 seconds
+            turnTimerInterval: null,
+            currentTurn: 0,
+            playerStates: new Map(),
           };
 
           gameSessions.set(gameCode, session);
@@ -362,6 +535,15 @@ wss.on('connection', (ws: WebSocket) => {
             return;
           }
 
+          // Guard: Must be in WAITING state
+          if (session.currentState !== GameState.WAITING) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Game already started',
+            }));
+            return;
+          }
+
           // Check if game can be started
           if (session.teamA.length < 1 || session.teamB.length < 1) {
             ws.send(JSON.stringify({
@@ -372,8 +554,7 @@ wss.on('connection', (ws: WebSocket) => {
           }
 
           session.isActive = true;
-          session.currentTurn = 1;
-          
+
           // Broadcast game started to all players with their team info
           session.teamA.forEach(player => {
             if (player.ws.readyState === WebSocket.OPEN) {
@@ -401,8 +582,8 @@ wss.on('connection', (ws: WebSocket) => {
             }
           });
 
-          // Start level selection phase with timer
-          startLevelSelectionPhase(session);
+          // Transition to level selection phase
+          transitionToLevelSelection(session);
 
           // Also broadcast full game state
           broadcastGameState(session);
@@ -431,32 +612,15 @@ wss.on('connection', (ws: WebSocket) => {
             return;
           }
 
-          session.isActive = false;
-          
-          // Broadcast game ended to all clients
-          const endMessage = {
-            type: 'game_ended',
-            gameCode: session.gameCode,
-            finalScoreA: session.scoreA,
-            finalScoreB: session.scoreB,
-          };
+          // Transition to game over state
+          transitionToGameOver(session);
 
-          if (session.hostWs && session.hostWs.readyState === WebSocket.OPEN) {
-            session.hostWs.send(JSON.stringify(endMessage));
-          }
-
-          [...session.teamA, ...session.teamB].forEach(player => {
-            if (player.ws.readyState === WebSocket.OPEN) {
-              player.ws.send(JSON.stringify(endMessage));
-            }
-          });
-
-          console.log(`Game ${gameCode} ended`);
+          console.log(`Game ${gameCode} ended by host`);
           break;
         }
 
         case 'get_game_state': {
-          const { gameCode } = data;
+          const { gameCode, playerName } = data;
           const session = gameSessions.get(gameCode);
 
           if (!session) {
@@ -467,16 +631,74 @@ wss.on('connection', (ws: WebSocket) => {
             return;
           }
 
-          // Send current game state
-          const gameState = {
+          // If playerName provided, update WebSocket reference (reconnection)
+          if (playerName) {
+            let player = session.teamA.find(p => p.name === playerName);
+            if (!player) {
+              player = session.teamB.find(p => p.name === playerName);
+            }
+
+            if (player) {
+              console.log(`Reconnecting player ${playerName} with new WebSocket`);
+              player.ws = ws;  // Update WebSocket reference
+
+              // If game is active and in LEVEL_SELECTION, re-add to playerStates
+              if (session.isActive && session.currentState === GameState.LEVEL_SELECTION) {
+                const existingState = Array.from(session.playerStates.values()).find(
+                  ps => ps.playerId === player!.id
+                );
+
+                if (existingState) {
+                  // Move the existing state to the new WebSocket key
+                  session.playerStates.set(ws, existingState);
+                  console.log(`Restored player state for ${playerName} in LEVEL_SELECTION`);
+                } else {
+                  // Create new player state
+                  session.playerStates.set(ws, {
+                    playerId: player.id,
+                    team: player.team,
+                    hasSelectedLevel: false,
+                    selectedLevel: null,
+                    levelSelectionTimestamp: null,
+                    assignedQuestion: null,
+                    hasSubmittedAnswer: false,
+                    submittedAnswer: null,
+                    answerSubmissionTimestamp: null,
+                    isCorrect: null,
+                    pointsEarned: 0
+                  });
+                  console.log(`Created new player state for ${playerName} in LEVEL_SELECTION`);
+                }
+              }
+            }
+          }
+
+          // Send current game state with state machine info
+          const currentTime = Date.now();
+          const elapsedTime = session.turnStartTimestamp
+            ? currentTime - session.turnStartTimestamp
+            : 0;
+          const timeRemainingMs = Math.max(0, session.totalTurnDuration - elapsedTime);
+          const timeRemaining = Math.ceil(timeRemainingMs / 1000);
+
+          const gameState: any = {
             type: 'game_state',
+            state: session.currentState,
             gameCode: session.gameCode,
             teamA: session.teamA.map(p => ({ id: p.id, name: p.name })),
             teamB: session.teamB.map(p => ({ id: p.id, name: p.name })),
             scoreA: session.scoreA,
             scoreB: session.scoreB,
             isActive: session.isActive,
+            timestamp: currentTime,
           };
+
+          // Add state-specific info
+          if (session.currentState === GameState.LEVEL_SELECTION) {
+            gameState.turnStartTimestamp = session.turnStartTimestamp;
+            gameState.totalTurnDuration = session.totalTurnDuration;
+            gameState.turnNumber = session.currentTurn;
+          }
 
           ws.send(JSON.stringify(gameState));
           break;
@@ -494,8 +716,46 @@ wss.on('connection', (ws: WebSocket) => {
             return;
           }
 
-          console.log(`Player selected level ${level} for game ${gameCode}`);
-          
+          // Guard: Only valid in LEVEL_SELECTION state
+          if (session.currentState !== GameState.LEVEL_SELECTION) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Level selection not allowed in current state',
+            }));
+            return;
+          }
+
+          // Guard: Check if timer has expired
+          const currentTime = Date.now();
+          const elapsedTime = currentTime - session.turnStartTimestamp!;
+          if (elapsedTime >= session.totalTurnDuration) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Time has expired for level selection',
+            }));
+            return;
+          }
+
+          const playerState = session.playerStates.get(ws);
+          if (!playerState) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Player not found',
+            }));
+            return;
+          }
+
+          // Guard: Check if already selected
+          if (playerState.hasSelectedLevel) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Level already selected',
+            }));
+            return;
+          }
+
+          console.log(`Player ${playerState.playerId} selected level ${level} for game ${gameCode}`);
+
           // Get a random question from the selected level
           const levelQuestions = questionsData.questions.filter((q: any) => q.level === level);
           if (levelQuestions.length === 0) {
@@ -507,22 +767,27 @@ wss.on('connection', (ws: WebSocket) => {
           }
 
           const randomQuestion = levelQuestions[Math.floor(Math.random() * levelQuestions.length)];
-          
-          // Store the selection
-          if (!session.playerLevelSelections) {
-            session.playerLevelSelections = new Map();
-          }
-          session.playerLevelSelections.set(ws, { level, question: randomQuestion });
-          
-          // Send question to the player with current timer remaining
-          const currentTimer = session.questionTimerRemaining !== undefined ? session.questionTimerRemaining : 5;
+
+          // Update player state
+          playerState.hasSelectedLevel = true;
+          playerState.selectedLevel = level;
+          playerState.levelSelectionTimestamp = currentTime;
+          playerState.assignedQuestion = randomQuestion;
+
+          // Calculate remaining time
+          const timeRemainingMs = Math.max(0, session.totalTurnDuration - elapsedTime);
+          const timeRemaining = Math.ceil(timeRemainingMs / 1000);
+
+          // Send question to the player
           ws.send(JSON.stringify({
-            type: 'question_received',
+            type: 'question_assigned',
+            state: 'ANSWERING_QUESTION',
             question: randomQuestion,
-            timer: currentTimer, // Use the synchronized timer
+            timeRemaining: timeRemaining,
+            timestamp: currentTime
           }));
-          
-          console.log(`Sent question ${randomQuestion.id} (${level}) to player with timer ${currentTimer}`);
+
+          console.log(`Sent question ${randomQuestion.id} (${level}) to player ${playerState.playerId} with ${timeRemaining}s remaining`);
           break;
         }
 
@@ -538,14 +803,49 @@ wss.on('connection', (ws: WebSocket) => {
             return;
           }
 
-          // Store the answer
-          const playerSelection = session.playerLevelSelections?.get(ws);
-          if (playerSelection) {
-            playerSelection.answer = answerIndex;
-            console.log(`Player submitted answer ${answerIndex} for game ${gameCode}`);
-          } else {
-            console.warn(`Player tried to submit answer but no level selection found`);
+          // Guard: Must have selected level first
+          const playerState = session.playerStates.get(ws);
+          if (!playerState || !playerState.hasSelectedLevel) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Must select level before submitting answer',
+            }));
+            return;
           }
+
+          // Guard: Check if already submitted
+          if (playerState.hasSubmittedAnswer) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Answer already submitted',
+            }));
+            return;
+          }
+
+          // Guard: Check if timer has expired
+          const currentTime = Date.now();
+          const elapsedTime = currentTime - session.turnStartTimestamp!;
+          if (elapsedTime >= session.totalTurnDuration) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Time has expired',
+            }));
+            return;
+          }
+
+          // Update player state
+          playerState.hasSubmittedAnswer = true;
+          playerState.submittedAnswer = answerIndex;
+          playerState.answerSubmissionTimestamp = currentTime;
+
+          console.log(`Player ${playerState.playerId} submitted answer ${answerIndex} at ${elapsedTime}ms`);
+
+          // Send acknowledgment
+          ws.send(JSON.stringify({
+            type: 'answer_submitted',
+            timestamp: currentTime
+          }));
+
           break;
         }
 
@@ -581,7 +881,16 @@ wss.on('connection', (ws: WebSocket) => {
     console.log('WebSocket connection closed');
     // Clean up player from sessions
     for (const [gameCode, session] of gameSessions.entries()) {
-      // Remove from teamA
+      // Don't remove players during active game (they might be reconnecting)
+      // Only mark the WebSocket reference as stale
+      if (session.isActive) {
+        // Just clean up from playerStates map if present
+        session.playerStates.delete(ws);
+        console.log('Player WebSocket closed during active game (might reconnect)');
+        continue;
+      }
+
+      // Remove from teamA if game not active
       const indexA = session.teamA.findIndex(p => p.ws === ws);
       if (indexA !== -1) {
         session.teamA.splice(indexA, 1);
@@ -589,7 +898,7 @@ wss.on('connection', (ws: WebSocket) => {
         break;
       }
 
-      // Remove from teamB
+      // Remove from teamB if game not active
       const indexB = session.teamB.findIndex(p => p.ws === ws);
       if (indexB !== -1) {
         session.teamB.splice(indexB, 1);

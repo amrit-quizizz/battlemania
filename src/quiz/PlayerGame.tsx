@@ -27,10 +27,16 @@ function PlayerGame() {
   const location = useLocation();
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Server state machine tracking
+  const [serverState, setServerState] = useState<string>('WAITING');
+  const [turnStartTimestamp, setTurnStartTimestamp] = useState<number | null>(null);
+  const [totalTurnDuration, setTotalTurnDuration] = useState<number>(15000);
+
   const [showLevelSelection, setShowLevelSelection] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState<'low' | 'medium' | 'hard' | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState(5); // Single timer for the turn
+  const [timeRemaining, setTimeRemaining] = useState(15); // 15 second timer for the turn
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [answerResult, setAnswerResult] = useState<'correct' | 'incorrect' | 'not_attempted' | null>(null);
@@ -74,7 +80,7 @@ function PlayerGame() {
       });
       // Show level selection immediately as fallback (server will override if connected)
       setShowLevelSelection(true);
-      setTimeRemaining(5);
+      setTimeRemaining(15);
     } else {
       console.warn('Missing required data for initialization:', { gameCode, playerName });
     }
@@ -95,10 +101,11 @@ function PlayerGame() {
 
     ws.onopen = () => {
       console.log('WebSocket connected for player game');
-      // Request game state
+      // Request game state and reconnect player
       const request = {
         type: 'get_game_state',
-        gameCode
+        gameCode,
+        playerName  // Include playerName for reconnection
       };
       console.log('Sending get_game_state request:', request);
       ws.send(JSON.stringify(request));
@@ -113,7 +120,12 @@ function PlayerGame() {
           case 'game_state':
             // Backend-controlled game state
             console.log('=== GAME STATE UPDATE ===', data);
-            
+
+            // Update server state
+            if (data.state) {
+              setServerState(data.state);
+            }
+
             // Update scores
             setGameState(prev => ({
               ...prev,
@@ -122,13 +134,12 @@ function PlayerGame() {
               scoreA: data.scoreA !== undefined ? data.scoreA : (prev?.scoreA || 0),
               scoreB: data.scoreB !== undefined ? data.scoreB : (prev?.scoreB || 0),
             }));
-            
+
             // Handle different game states
-            if (data.state === 'level_selection') {
+            if (data.state === 'LEVEL_SELECTION' || data.state === 'level_selection') {
               // Backend says: show level selection screen
-              console.log('State: level_selection, timer:', data.timer);
+              console.log('State: LEVEL_SELECTION');
               setShowLevelSelection(true);
-              setTimeRemaining(data.timer || 5);
               setSelectedLevel(null);
               setCurrentQuestion(null);
               setShowResult(false);
@@ -136,9 +147,25 @@ function PlayerGame() {
               setSelectedAnswer(null);
               setIsAnswerSubmitted(false);
               setError(null);
-            } else if (data.state === 'result') {
+
+              // Store timestamp info for sync
+              if (data.turnStartTimestamp) {
+                setTurnStartTimestamp(data.turnStartTimestamp);
+              }
+              if (data.totalTurnDuration) {
+                setTotalTurnDuration(data.totalTurnDuration);
+              }
+              // Calculate initial time remaining
+              if (data.turnStartTimestamp && data.totalTurnDuration) {
+                const elapsed = Date.now() - data.turnStartTimestamp;
+                const remaining = Math.ceil((data.totalTurnDuration - elapsed) / 1000);
+                setTimeRemaining(Math.max(0, remaining));
+              } else {
+                setTimeRemaining(15);
+              }
+            } else if (data.state === 'SHOWING_RESULT' || data.state === 'result') {
               // Backend says: show result popup
-              console.log('State: result', data);
+              console.log('State: SHOWING_RESULT', data);
               setShowLevelSelection(false);
               setShowResult(true);
               setIsAnswerSubmitted(true);
@@ -150,6 +177,10 @@ function PlayerGame() {
               if (data.scoreB !== undefined) {
                 setGameState(prev => prev ? { ...prev, scoreB: data.scoreB } : prev);
               }
+            } else if (data.state === 'GAME_OVER') {
+              // Game over
+              alert(`Game Over! Team A: ${data.finalScoreA}, Team B: ${data.finalScoreB}`);
+              navigate('/quiz/join');
             }
             break;
 
@@ -180,18 +211,30 @@ function PlayerGame() {
             break;
 
           case 'question_received':
+          case 'question_assigned':
             // Server sends question after level selection
-            console.log('Question received from server:', data.question, 'timer:', data.timer);
+            console.log('Question received from server:', data.question, 'timer:', data.timeRemaining || data.timer);
+            // Update server state if provided
+            if (data.state) {
+              setServerState(data.state);
+            }
             // Keep level selection visible, just show question
             setCurrentQuestion(data.question);
             // Use the synchronized timer from server (don't reset it)
-            // Only update if timer value is provided and valid
-            if (data.timer !== undefined && data.timer !== null && data.timer >= 0) {
-              setTimeRemaining(data.timer);
+            // Support both timeRemaining (new) and timer (old) formats
+            const timerValue = data.timeRemaining !== undefined ? data.timeRemaining : data.timer;
+            if (timerValue !== undefined && timerValue !== null && timerValue >= 0) {
+              setTimeRemaining(timerValue);
             }
             setSelectedAnswer(null);
             // Don't set isAnswerSubmitted - timer is still running
             setError(null); // Clear any errors
+            break;
+
+          case 'answer_submitted':
+            // Server acknowledged answer submission
+            console.log('Answer submission acknowledged by server');
+            setIsAnswerSubmitted(true);
             break;
 
           case 'score_update':
