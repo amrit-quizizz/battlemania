@@ -1,0 +1,124 @@
+{
+  "questions": [
+    {
+      "id": 1,
+      "level": "low",
+      "points": 50,
+      "question": "What is the capital of France?",
+      "options": ["London", "Berlin", "Paris", "Madrid"],
+      "correctAnswer": 2
+    },
+    {
+      "id": 2,
+      "level": "low",
+      "points": 50,
+      "question": "What is 2 + 2?",
+      "options": ["3", "4", "5", "6"],
+      "correctAnswer": 1
+    },
+    {
+      "id": 3,
+      "level": "low",
+      "points": 50,
+      "question": "Which planet is closest to the Sun?",
+      "options": ["Venus", "Mercury", "Earth", "Mars"],
+      "correctAnswer": 1
+    },
+    {
+      "id": 4,
+      "level": "low",
+      "points": 50,
+      "question": "What is the largest ocean on Earth?",
+      "options": ["Atlantic", "Indian", "Arctic", "Pacific"],
+      "correctAnswer": 3
+    },
+    {
+      "id": 5,
+      "level": "low",
+      "points": 50,
+      "question": "How many continents are there?",
+      "options": ["5", "6", "7", "8"],
+      "correctAnswer": 2
+    },
+    {
+      "id": 6,
+      "level": "medium",
+      "points": 75,
+      "question": "What is the chemical symbol for gold?",
+      "options": ["Go", "Gd", "Au", "Ag"],
+      "correctAnswer": 2
+    },
+    {
+      "id": 7,
+      "level": "medium",
+      "points": 75,
+      "question": "Who wrote 'Romeo and Juliet'?",
+      "options": ["Charles Dickens", "William Shakespeare", "Jane Austen", "Mark Twain"],
+      "correctAnswer": 1
+    },
+    {
+      "id": 8,
+      "level": "medium",
+      "points": 75,
+      "question": "What is the speed of light in vacuum?",
+      "options": ["300,000 km/s", "150,000 km/s", "450,000 km/s", "600,000 km/s"],
+      "correctAnswer": 0
+    },
+    {
+      "id": 9,
+      "level": "medium",
+      "points": 75,
+      "question": "Which gas makes up most of Earth's atmosphere?",
+      "options": ["Oxygen", "Carbon Dioxide", "Nitrogen", "Argon"],
+      "correctAnswer": 2
+    },
+    {
+      "id": 10,
+      "level": "medium",
+      "points": 75,
+      "question": "What is the smallest prime number?",
+      "options": ["0", "1", "2", "3"],
+      "correctAnswer": 2
+    },
+    {
+      "id": 11,
+      "level": "hard",
+      "points": 100,
+      "question": "What is the time complexity of binary search?",
+      "options": ["O(n)", "O(log n)", "O(n log n)", "O(1)"],
+      "correctAnswer": 1
+    },
+    {
+      "id": 12,
+      "level": "hard",
+      "points": 100,
+      "question": "Who discovered the theory of relativity?",
+      "options": ["Isaac Newton", "Albert Einstein", "Stephen Hawking", "Galileo Galilei"],
+      "correctAnswer": 1
+    },
+    {
+      "id": 13,
+      "level": "hard",
+      "points": 100,
+      "question": "What is the derivative of e^x?",
+      "options": ["e^x", "x * e^x", "e^(x-1)", "ln(x)"],
+      "correctAnswer": 0
+    },
+    {
+      "id": 14,
+      "level": "hard",
+      "points": 100,
+      "question": "Which programming language was created by Guido van Rossum?",
+      "options": ["Java", "Python", "JavaScript", "C++"],
+      "correctAnswer": 1
+    },
+    {
+      "id": 15,
+      "level": "hard",
+      "points": 100,
+      "question": "What is the largest prime number less than 100?",
+      "options": ["89", "91", "97", "99"],
+      "correctAnswer": 2
+    }
+  ]
+}
