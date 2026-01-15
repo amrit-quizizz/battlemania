@@ -11,6 +11,7 @@ interface Player {
   position: Position
   rotation: number
   health: number
+  team: 'teamA' | 'teamB'
 }
 
 interface Bullet {
@@ -21,30 +22,45 @@ interface Bullet {
   speed: number
 }
 
+interface DamageHistoryEntry {
+  playerId: 'player1' | 'player2'
+  damage: number
+  timestamp: number
+}
+
 interface GameState {
   player1: Player
   player2: Player
   bullets: Bullet[]
+  damageDealt: { teamA: number; teamB: number }
+  damageHistory: DamageHistoryEntry[]
   updatePlayerPosition: (player: 'player1' | 'player2', position: Partial<Position>) => void
   updatePlayerRotation: (player: 'player1' | 'player2', rotation: number) => void
   addBullet: (bullet: Bullet) => void
   removeBullet: (id: string) => void
   updateBullets: () => void
   damagePlayer: (player: 'player1' | 'player2', damage: number) => void
+  applyDamageToPlayer: (player: 'player1' | 'player2', damage: number, sourcePlayer: 'player1' | 'player2') => void
+  getTeamHealth: (team: 'teamA' | 'teamB') => number
+  resetHealth: () => void
 }
 
 const useGameStore = create<GameState>((set, get) => ({
   player1: {
     position: { ...playerConfig.player1StartPosition },
     rotation: playerConfig.player1StartRotation,
-    health: playerConfig.initialHealth
+    health: playerConfig.initialHealth,
+    team: 'teamA'
   },
   player2: {
     position: { ...playerConfig.player2StartPosition },
     rotation: playerConfig.player2StartRotation,
-    health: playerConfig.initialHealth
+    health: playerConfig.initialHealth,
+    team: 'teamB'
   },
   bullets: [],
+  damageDealt: { teamA: 0, teamB: 0 },
+  damageHistory: [],
 
   updatePlayerPosition: (player, position) => {
     set((state) => ({
@@ -95,6 +111,55 @@ const useGameStore = create<GameState>((set, get) => ({
         ...state[player],
         health: Math.max(0, state[player].health - damage)
       }
+    }))
+  },
+
+  applyDamageToPlayer: (player, damage, sourcePlayer) => {
+    const state = get()
+    const sourceTeam = state[sourcePlayer].team
+    const targetTeam = state[player].team
+    
+    // Apply damage
+    state.damagePlayer(player, damage)
+    
+    // Track damage dealt by source team
+    set((currentState) => ({
+      damageDealt: {
+        ...currentState.damageDealt,
+        [sourceTeam]: currentState.damageDealt[sourceTeam] + damage
+      },
+      damageHistory: [
+        ...currentState.damageHistory,
+        {
+          playerId: player,
+          damage,
+          timestamp: Date.now()
+        }
+      ].slice(-50) // Keep last 50 entries
+    }))
+  },
+
+  getTeamHealth: (team) => {
+    const state = get()
+    if (team === 'teamA') {
+      return state.player1.health
+    } else {
+      return state.player2.health
+    }
+  },
+
+  resetHealth: () => {
+    set((state) => ({
+      player1: {
+        ...state.player1,
+        health: playerConfig.initialHealth
+      },
+      player2: {
+        ...state.player2,
+        health: playerConfig.initialHealth
+      },
+      damageDealt: { teamA: 0, teamB: 0 },
+      damageHistory: []
     }))
   }
 }))

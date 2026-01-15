@@ -2,7 +2,10 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { Suspense, useEffect } from 'react'
 import { Physics } from '@react-three/rapier'
 import { PerspectiveCamera } from '@react-three/drei'
-import { cameraConfig, environmentConfig, physicsConfig, uiConfig } from './config/gameConfig'
+import { cameraConfig, environmentConfig, physicsConfig } from './config/gameConfig'
+import { HealthBarOverlay } from './components/HealthBarOverlay'
+import { ScoreCard } from './components/ScoreCard'
+import { resetHealth, registerHealthChangeListener } from './utils/healthDamageSystem'
 import * as THREE from 'three'
 import CleanBattleScene from './components/CleanBattleScene'
 
@@ -16,6 +19,23 @@ function SceneBackground() {
 }
 
 function SideScrollGame() {
+  // Initialize health system on mount
+  useEffect(() => {
+    // Reset health when component mounts
+    resetHealth()
+    
+    // Subscribe to health changes (can be used for additional effects)
+    const unsubscribe = registerHealthChangeListener((event) => {
+      // Health change event received - can be used for additional effects
+      // For example: play sound, trigger screen shake, etc.
+      console.log(`Health changed for ${event.playerId}: ${event.oldHealth} -> ${event.newHealth}`)
+    })
+    
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
   return (
     <div style={{
       width: '100vw',
@@ -48,39 +68,12 @@ function SideScrollGame() {
         </Physics>
       </Canvas>
 
-      {/* HUD Overlay */}
-      <div style={{
-        position: 'absolute',
-        top: uiConfig.hud.topLeft.top,
-        left: uiConfig.hud.topLeft.left,
-        color: uiConfig.text.color,
-        fontSize: uiConfig.fonts.subtitleSize,
-        fontWeight: uiConfig.fonts.titleWeight,
-        fontFamily: uiConfig.fonts.family,
-        textShadow: uiConfig.text.shadow
-      }}>
-        <div>Battle Mania - Tank Battle</div>
-        <div style={{ fontSize: uiConfig.fonts.instructionSize, marginTop: '10px' }}>
-          Player 1: A/D to move, W to jump, Space to fire
-        </div>
-        <div style={{ fontSize: uiConfig.fonts.instructionSize }}>
-          Player 2: Arrow keys to move, Up to jump, Enter to fire
-        </div>
-      </div>
+      {/* Damage Numbers Overlay */}
+      <HealthBarOverlay />
 
-      {/* Score Display */}
-      <div style={{
-        position: 'absolute',
-        top: uiConfig.hud.topRight.top,
-        right: uiConfig.hud.topRight.right,
-        color: uiConfig.text.color,
-        fontSize: uiConfig.fonts.titleSize,
-        fontWeight: uiConfig.fonts.titleWeight,
-        fontFamily: uiConfig.fonts.family,
-        textShadow: uiConfig.text.shadow
-      }}>
-        <div>Score: 0</div>
-      </div>
+      {/* Score Cards - Left and Right */}
+      <ScoreCard side="left" player="player1" teamName="TEAM A" teamColor="#0066ff" />
+      <ScoreCard side="right" player="player2" teamName="TEAM B" teamColor="#ff0066" />
     </div>
   )
 }

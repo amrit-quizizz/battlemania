@@ -16,6 +16,7 @@ import { uiConfig, type UIConfig } from './uiConfig'
 import { animationConfig, type AnimationConfig } from './animationConfig'
 import { visualEffectsConfig, type VisualEffectsConfig } from './visualEffectsConfig'
 import { spectatorConfig, type SpectatorConfig } from './spectatorConfig'
+import { damageConfig, type DamageConfig } from './damageConfig'
 
 /**
  * Complete game configuration interface
@@ -32,6 +33,7 @@ export interface GameConfig {
   animation: AnimationConfig
   visualEffects: VisualEffectsConfig
   spectator: SpectatorConfig
+  damage: DamageConfig
 }
 
 /**
@@ -66,7 +68,8 @@ export const gameConfig: GameConfig = {
   ui: uiConfig,
   animation: animationConfig,
   visualEffects: visualEffectsConfig,
-  spectator: spectatorConfig
+  spectator: spectatorConfig,
+  damage: damageConfig
 }
 
 /**
@@ -104,7 +107,8 @@ export {
   uiConfig,
   animationConfig,
   visualEffectsConfig,
-  spectatorConfig
+  spectatorConfig,
+  damageConfig
 }
 
 // Export types
@@ -119,5 +123,6 @@ export type {
   UIConfig,
   AnimationConfig,
   VisualEffectsConfig,
-  SpectatorConfig
+  SpectatorConfig,
+  DamageConfig
 }

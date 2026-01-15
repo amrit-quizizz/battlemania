@@ -13,6 +13,8 @@ import {
   visualEffectsConfig
 } from '../config/gameConfig'
 import { StadiumWithSpectators } from './StadiumWithSpectators'
+import { HealthBar3D } from './HealthBar3D'
+import { triggerDamage, DamageType } from '../utils/healthDamageSystem'
 import * as THREE from 'three'
 
 // Model paths - using models from public/models
@@ -515,8 +517,10 @@ function CleanBattleScene() {
     const player1Handle = player1TankRef.current?.handle
     const player2Handle = player2TankRef.current?.handle
     
-    // Find shooter tank ref
+    // Find shooter tank ref and determine player IDs
     let shooterTankRef: React.RefObject<RapierRigidBody | null> | undefined = undefined
+    let hitPlayerId: 'player1' | 'player2' | null = null
+    
     if (ownerTankHandle === player1Handle) {
       shooterTankRef = player1TankRef
     } else if (ownerTankHandle === player2Handle) {
@@ -527,8 +531,15 @@ function CleanBattleScene() {
     let enemyTankRef: React.RefObject<RapierRigidBody | null> | undefined = undefined
     if (hitData.hitTankHandle === player1Handle) {
       enemyTankRef = player1TankRef
+      hitPlayerId = 'player1'
     } else if (hitData.hitTankHandle === player2Handle) {
       enemyTankRef = player2TankRef
+      hitPlayerId = 'player2'
+    }
+    
+    // Apply damage to hit player (default to MEDIUM damage for now)
+    if (hitPlayerId) {
+      triggerDamage(hitPlayerId, DamageType.MEDIUM, 'bullet')
     }
     
     // Apply recoil to shooter tank
@@ -632,6 +643,9 @@ function CleanBattleScene() {
           handleBulletHit(hitData, ownerTankHandle)
         }}
       />
+      
+      {/* Player 1 Health Bar - Pinned to tank */}
+      <HealthBar3D player="player1" tankRef={player1TankRef} />
 
       {/* PLAYER 2 TANK - Right side, facing LEFT (towards center) */}
       <PlayerTank
@@ -643,6 +657,9 @@ function CleanBattleScene() {
           handleBulletHit(hitData, ownerTankHandle)
         }}
       />
+      
+      {/* Player 2 Health Bar - Pinned to tank */}
+      <HealthBar3D player="player2" tankRef={player2TankRef} />
 
       {/* ENHANCED LIGHTING - More realistic lighting setup */}
       {/* Ambient light for overall illumination - brighter */}
