@@ -6,8 +6,9 @@ import BattleDisplay from './BattleDisplay';
 
 interface Question {
   id: number;
-  level: 'low' | 'medium' | 'hard';
-  points: number;
+  difficulty: 'low' | 'medium' | 'hard';
+  level?: 'low' | 'medium' | 'hard'; // Legacy support
+  points?: number; // Optional, will calculate based on difficulty if missing
   question: string;
   options: string[];
   correctAnswer: number;
@@ -730,8 +731,8 @@ function PlayerGame() {
             <>
               <div className="question-container">
                 <div className="question-header">
-                  <span className={`question-level-badge level-${currentQuestion.level}`}>
-                    {currentQuestion.level.toUpperCase()} - {currentQuestion.points} Points
+                  <span className={`question-level-badge level-${currentQuestion.difficulty || currentQuestion.level}`}>
+                    {(currentQuestion.difficulty || currentQuestion.level || 'medium').toUpperCase()} - {currentQuestion.points || (currentQuestion.difficulty === 'low' ? 50 : currentQuestion.difficulty === 'medium' ? 75 : 100)} Points
                   </span>
                   <div className="timer-container">
                     <div className={`timer ${timeRemaining <= 2 ? 'timer-warning' : ''}`}>
