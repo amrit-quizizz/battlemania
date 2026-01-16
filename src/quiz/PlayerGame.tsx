@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import BattleManiaGame from '../games/battlemania/BattleManiaGame';
 import './PlayerGame.css';
 import BattleDisplay from './BattleDisplay';
 
@@ -56,7 +55,7 @@ function PlayerGame() {
     icon: string;
   }>>([]);
   const [previousScores, setPreviousScores] = useState<{ teamA: number; teamB: number }>({ teamA: 0, teamB: 0 });
-  const [waitingForOtherPlayer, setWaitingForOtherPlayer] = useState(false);
+  const [_waitingForOtherPlayer, setWaitingForOtherPlayer] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const popupTimerRef = useRef<number | null>(null);
   const battleDisplayTimerRef = useRef<number | null>(null);
@@ -749,7 +748,7 @@ function PlayerGame() {
         </div>
 
         {/* Popup Panel - Shows between turns */}
-        {showPopup && (
+        {showPopup && createPortal(
           <div className="result-popup-overlay" style={{
             position: 'fixed',
             top: 0,
