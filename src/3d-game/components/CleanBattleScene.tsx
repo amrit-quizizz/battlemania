@@ -255,12 +255,26 @@ function PlayerTank({ player, position, onBulletHit, tankRef: externalTankRef }:
       keysPressed.current.delete(e.key.toLowerCase())
     }
 
+    // Listen for custom events from WebSocket (triggered by BattleMode)
+    const handleFireTank = (e: Event) => {
+      const eventPlayer = (e as CustomEvent).detail.player as 'player1' | 'player2'
+      if (eventPlayer === player && tankRef.current) {
+        const currentTime = Date.now()
+        if (currentTime - lastFireTime.current >= fireCooldown) {
+          fireBullet()
+          lastFireTime.current = currentTime
+        }
+      }
+    }
+
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('battle:fireTank', handleFireTank)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('battle:fireTank', handleFireTank)
     }
   }, [player, fireBullet, fireCooldown])
 
@@ -688,7 +702,7 @@ function CleanBattleScene() {
     playHitSound()
   }, [])
 
-  // Key handlers for turret fire (Z for P1, M for P2)
+  // Key handlers for turret fire (Z for P1, M for P2) and custom events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return
@@ -701,8 +715,19 @@ function CleanBattleScene() {
       }
     }
 
+    // Listen for custom events from WebSocket (triggered by BattleMode)
+    const handleFireTurret = (e: Event) => {
+      const player = (e as CustomEvent).detail.player as 'player1' | 'player2'
+      fireTurretBullets(player)
+    }
+
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('battle:fireTurret', handleFireTurret)
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('battle:fireTurret', handleFireTurret)
+    }
   }, [fireTurretBullets])
 
   // Initialize audio: preload sounds and start ambient crowd noise

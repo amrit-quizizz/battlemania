@@ -6,6 +6,7 @@ import { PerspectiveCamera } from '@react-three/drei'
 import { Icon } from '@iconify/react'
 import * as THREE from 'three'
 import { useToast } from '../components/Toast'
+import useGameStore from '../3d-game/store/gameStore'
 import {
   COLORS,
   FONT_SIZES,
@@ -95,6 +96,22 @@ export default function BattleMode() {
   const [viewState, setViewState] = useState<ViewState>('form')
   const [isAnimating, setIsAnimating] = useState(false)
   
+  // Function to sync backend health to 3D scene
+  const syncHealthTo3D = (teamAHealth: number, teamBHealth: number) => {
+    const store = useGameStore.getState()
+    // Calculate damage needed to reach target health
+    const player1Damage = store.player1.health - teamAHealth
+    const player2Damage = store.player2.health - teamBHealth
+    
+    // Apply damage if health decreased
+    if (player1Damage > 0) {
+      store.damagePlayer('player1', player1Damage)
+    }
+    if (player2Damage > 0) {
+      store.damagePlayer('player2', player2Damage)
+    }
+  }
+  
   // Form state
   const [subject, setSubject] = useState('')
   const [topic, setTopic] = useState('')
@@ -176,8 +193,12 @@ export default function BattleMode() {
 
           case 'game_started':
             setGameStatus('playing')
-            setTeamAHealth(data.teamAHealth ?? 100)
-            setTeamBHealth(data.teamBHealth ?? 100)
+            const startTeamAHealth = data.teamAHealth ?? 100
+            const startTeamBHealth = data.teamBHealth ?? 100
+            setTeamAHealth(startTeamAHealth)
+            setTeamBHealth(startTeamBHealth)
+            // Sync 3D health at game start
+            syncHealthTo3D(startTeamAHealth, startTeamBHealth)
             showToast('Battle started! Students can now answer questions.', 'success')
             break
 
@@ -190,8 +211,29 @@ export default function BattleMode() {
               difficulty: data.difficulty,
             }
             setFireEvents(prev => [...prev, fireEvent])
-            setTeamAHealth(data.teamAHealth)
-            setTeamBHealth(data.teamBHealth)
+            
+            // Update health state
+            const newTeamAHealth = data.teamAHealth
+            const newTeamBHealth = data.teamBHealth
+            setTeamAHealth(newTeamAHealth)
+            setTeamBHealth(newTeamBHealth)
+            
+            // Sync 3D health system
+            syncHealthTo3D(newTeamAHealth, newTeamBHealth)
+            
+            // Trigger appropriate animation based on difficulty
+            const attackingPlayer = data.fromTeam === 'A' ? 'player1' : 'player2'
+            if (data.difficulty === 'hard') {
+              // Hard difficulty = turret missile
+              window.dispatchEvent(new CustomEvent('battle:fireTurret', { 
+                detail: { player: attackingPlayer } 
+              }))
+            } else {
+              // Easy/Medium difficulty = tank bullet
+              window.dispatchEvent(new CustomEvent('battle:fireTank', { 
+                detail: { player: attackingPlayer } 
+              }))
+            }
             
             showToast(
               `${data.playerName} hit Team ${data.toTeam} for ${data.damage} damage!`,
@@ -204,8 +246,12 @@ export default function BattleMode() {
             break
 
           case 'health_update':
-            setTeamAHealth(data.teamAHealth)
-            setTeamBHealth(data.teamBHealth)
+            const updatedTeamAHealth = data.teamAHealth
+            const updatedTeamBHealth = data.teamBHealth
+            setTeamAHealth(updatedTeamAHealth)
+            setTeamBHealth(updatedTeamBHealth)
+            // Sync 3D health on health update
+            syncHealthTo3D(updatedTeamAHealth, updatedTeamBHealth)
             break
 
           case 'scores_update':
@@ -514,7 +560,7 @@ export default function BattleMode() {
             near={cameraConfig.perspective.near}
             far={cameraConfig.perspective.far}
           />
-          <fog attach="fog" color={environmentConfig.fog.color} near={environmentConfig.fog.near} far={environmentConfig.fog.far} />
+          <fog attach="fog" args={[environmentConfig.fog.color, environmentConfig.fog.near, environmentConfig.fog.far]} />
           <SceneBackground />
           <color attach="background" args={[environmentConfig.sky.primaryColor]} />
           
