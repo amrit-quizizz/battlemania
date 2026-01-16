@@ -24,7 +24,7 @@ function QuizGame() {
   const [error, setError] = useState<string | null>(null);
   const [showPopup, setShowPopup] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const popupTimerRef = useRef<number | null>(null);
 
   // Get game code from location state or try to reconnect
   const gameCode = location.state?.gameCode;
