@@ -330,7 +330,7 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ 
   server,
   // Allow connections from any origin (development)
-  verifyClient: (info) => {
+  verifyClient: (info: { origin: string; secure: boolean; req: http.IncomingMessage }) => {
     console.log('WebSocket connection attempt from origin:', info.origin);
     return true; // Accept all connections in development
   }
@@ -542,37 +542,40 @@ wss.on('connection', (ws, req) => {
             return;
           }
 
+          // Store currentRoom in a const to help TypeScript's flow analysis
+          const room = currentRoom;
+
           // Find available questions of this difficulty
-          const availableQuestions = currentRoom.questions.filter(
-            q => q.difficulty === difficulty && !currentRoom.usedQuestionIds.has(q.id)
+          const availableQuestions = room.questions.filter(
+            q => q.difficulty === difficulty && !room.usedQuestionIds.has(q.id)
           );
 
           if (availableQuestions.length === 0) {
             // No more questions of this difficulty - use any available
-            const anyAvailable = currentRoom.questions.filter(
-              q => !currentRoom.usedQuestionIds.has(q.id)
+            const anyAvailable = room.questions.filter(
+              q => !room.usedQuestionIds.has(q.id)
             );
             
             if (anyAvailable.length === 0) {
               // No questions left - end game
-              currentRoom.status = 'finished';
-              const winner = currentRoom.teamAHealth > currentRoom.teamBHealth ? 'A' : 
-                            currentRoom.teamBHealth > currentRoom.teamAHealth ? 'B' : 'draw';
+              room.status = 'finished';
+              const winner = room.teamAHealth > room.teamBHealth ? 'A' : 
+                            room.teamBHealth > room.teamAHealth ? 'B' : 'draw';
               
-              broadcastToRoom(currentRoom, {
+              broadcastToRoom(room, {
                 type: 'game_finished',
                 winner,
-                teamAHealth: currentRoom.teamAHealth,
-                teamBHealth: currentRoom.teamBHealth,
-                ...getTeamsList(currentRoom),
+                teamAHealth: room.teamAHealth,
+                teamBHealth: room.teamBHealth,
+                ...getTeamsList(room),
               });
               return;
             }
             
             // Pick a random available question
             const randomQuestion = anyAvailable[Math.floor(Math.random() * anyAvailable.length)];
-            currentRoom.usedQuestionIds.add(randomQuestion.id);
-            currentRoom.playerCurrentQuestion.set(playerId, randomQuestion.id);
+            room.usedQuestionIds.add(randomQuestion.id);
+            room.playerCurrentQuestion.set(playerId, randomQuestion.id);
             
             ws.send(JSON.stringify({
               type: 'question',
@@ -580,15 +583,15 @@ wss.on('connection', (ws, req) => {
               question: randomQuestion.question,
               options: randomQuestion.options,
               difficulty: randomQuestion.difficulty,
-              totalQuestions: currentRoom.questions.length,
+              totalQuestions: room.questions.length,
             }));
             return;
           }
 
           // Pick a random question from available ones
           const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
-          currentRoom.usedQuestionIds.add(randomQuestion.id);
-          currentRoom.playerCurrentQuestion.set(playerId, randomQuestion.id);
+          room.usedQuestionIds.add(randomQuestion.id);
+          room.playerCurrentQuestion.set(playerId, randomQuestion.id);
 
           ws.send(JSON.stringify({
             type: 'question',
@@ -596,7 +599,7 @@ wss.on('connection', (ws, req) => {
             question: randomQuestion.question,
             options: randomQuestion.options,
             difficulty: randomQuestion.difficulty,
-            totalQuestions: currentRoom.questions.length,
+            totalQuestions: room.questions.length,
           }));
           break;
         }
