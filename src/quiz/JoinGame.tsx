@@ -722,9 +722,9 @@ function JoinGame() {
             <>
               <section className="question-section">
                 <div className="question-badge">Question {questionNumber + 1}</div>
-                <div className="question-card">
-                  <h2 className="question-text">Choose your difficulty level</h2>
-                  <p style={{ color: '#888', marginTop: '10px' }}>
+                <div className="question-card" style={{ flexDirection: 'column', alignItems: 'center' }}>
+                  <h2 className="question-text" style={{ margin: 0 }}>Choose your difficulty level</h2>
+                  <p style={{ color: '#888', margin: '8px 0 0 0', fontSize: '16px' }}>
                     Higher difficulty = More damage to enemy team!
                   </p>
                 </div>
@@ -739,8 +739,8 @@ function JoinGame() {
                     style={{ background: 'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)' }}
                   >
                     <span className="answer-number">1</span>
-                    <span className="answer-text">
-                      Easy<br />
+                    <span className="answer-text" style={{ flexDirection: 'column', gap: '8px' }}>
+                      <span>Easy</span>
                       <small style={{ fontSize: '14px', opacity: 0.8 }}>10 Damage</small>
                     </span>
                   </button>
@@ -751,8 +751,8 @@ function JoinGame() {
                     style={{ background: 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)' }}
                   >
                     <span className="answer-number">2</span>
-                    <span className="answer-text">
-                      Medium<br />
+                    <span className="answer-text" style={{ flexDirection: 'column', gap: '8px' }}>
+                      <span>Medium</span>
                       <small style={{ fontSize: '14px', opacity: 0.8 }}>20 Damage</small>
                     </span>
                   </button>
@@ -763,8 +763,8 @@ function JoinGame() {
                     style={{ background: 'linear-gradient(180deg, #ef4444 0%, #dc2626 100%)' }}
                   >
                     <span className="answer-number">3</span>
-                    <span className="answer-text">
-                      Hard<br />
+                    <span className="answer-text" style={{ flexDirection: 'column', gap: '8px' }}>
+                      <span>Hard</span>
                       <small style={{ fontSize: '14px', opacity: 0.8 }}>30 Damage</small>
                     </span>
                   </button>
