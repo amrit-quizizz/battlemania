@@ -25,6 +25,9 @@ import {
 import CleanBattleScene from '../3d-game/components/CleanBattleScene'
 import { ScoreCard3D } from '../3d-game/components/ScoreCard3D'
 import { HealthBarOverlay } from '../3d-game/components/HealthBarOverlay'
+import battlemaniaImg from '../assets/battlemania.png'
+import junglesafariImg from '../assets/junglesafari.png'
+import angrybirdImg from '../assets/anrybird.avif'
 import { 
   cameraConfig, 
   environmentConfig, 
@@ -118,6 +121,7 @@ export default function BattleMode() {
   const [gradeLevel, setGradeLevel] = useState('')
   const [numberOfQuestions, setNumberOfQuestions] = useState('10')
   const [additionalDetails, setAdditionalDetails] = useState('')
+  const [selectedGame, setSelectedGame] = useState<string>('battle-mania')
   
   // Game state
   const [gameCode, setGameCode] = useState<string | null>(null)
@@ -1097,6 +1101,134 @@ export default function BattleMode() {
                   resize: 'vertical',
                 }}
               />
+            </div>
+
+            {/* Game Selection Tiles */}
+            <div style={{ marginBottom: SPACING[6] }}>
+              <label style={labelStyle}>Select Game Mode</label>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: SPACING[6],
+                marginTop: SPACING[2],
+              }}>
+                {/* BattleMania */}
+                <div
+                  onClick={() => setSelectedGame('battle-mania')}
+                  style={{
+                    position: 'relative',
+                    backgroundColor: selectedGame === 'battle-mania' ? 'rgba(139, 92, 246, 0.1)' : COLORS.white,
+                    border: selectedGame === 'battle-mania' ? '3px solid #8b5cf6' : `2px solid ${COLORS.borderGray}`,
+                    borderRadius: BORDER_RADIUS.lg,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    overflow: 'hidden',
+                    aspectRatio: '4 / 3',
+                  }}
+                >
+                  <img 
+                    src={battlemaniaImg} 
+                    alt="BattleMania" 
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'cover',
+                    }} 
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: `${SPACING[2]} ${SPACING[3]}`,
+                    fontSize: FONT_SIZES.sm,
+                    fontWeight: FONT_WEIGHTS.semibold,
+                    color: COLORS.white,
+                    textAlign: 'center',
+                  }}>
+                    Battle Mania
+                  </div>
+                </div>
+
+                {/* Tank Wars */}
+                <div
+                  onClick={() => setSelectedGame('tank-wars')}
+                  style={{
+                    position: 'relative',
+                    backgroundColor: selectedGame === 'tank-wars' ? 'rgba(139, 92, 246, 0.1)' : COLORS.white,
+                    border: selectedGame === 'tank-wars' ? '3px solid #8b5cf6' : `2px solid ${COLORS.borderGray}`,
+                    borderRadius: BORDER_RADIUS.lg,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    overflow: 'hidden',
+                    aspectRatio: '4 / 3',
+                  }}
+                >
+                  <img 
+                    src={junglesafariImg} 
+                    alt="Tank Wars" 
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'cover',
+                    }} 
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: `${SPACING[2]} ${SPACING[3]}`,
+                    fontSize: FONT_SIZES.sm,
+                    fontWeight: FONT_WEIGHTS.semibold,
+                    color: COLORS.white,
+                    textAlign: 'center',
+                  }}>
+                    Jungle Safari
+                  </div>
+                </div>
+
+                {/* Brain Battle */}
+                <div
+                  onClick={() => setSelectedGame('brain-battle')}
+                  style={{
+                    position: 'relative',
+                    backgroundColor: selectedGame === 'brain-battle' ? 'rgba(139, 92, 246, 0.1)' : COLORS.white,
+                    border: selectedGame === 'brain-battle' ? '3px solid #8b5cf6' : `2px solid ${COLORS.borderGray}`,
+                    borderRadius: BORDER_RADIUS.lg,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    overflow: 'hidden',
+                    aspectRatio: '4 / 3',
+                  }}
+                >
+                  <img 
+                    src={angrybirdImg} 
+                    alt="Brain Battle" 
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'cover',
+                    }} 
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: `${SPACING[2]} ${SPACING[3]}`,
+                    fontSize: FONT_SIZES.sm,
+                    fontWeight: FONT_WEIGHTS.semibold,
+                    color: COLORS.white,
+                    textAlign: 'center',
+                  }}>
+                    Angry Bird
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'center' }}>
