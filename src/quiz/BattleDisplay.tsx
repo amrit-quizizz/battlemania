@@ -14,9 +14,10 @@ interface Projectile {
 interface BattleDisplayProps {
   projectiles: Projectile[];
   teamScores?: { teamA: number; teamB: number };
+  playerHealth?: { teamA: number; teamB: number };
 }
 
-const BattleDisplay = ({ projectiles, teamScores }: BattleDisplayProps) => {
+const BattleDisplay = ({ projectiles, teamScores, playerHealth }: BattleDisplayProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const drawTank = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string) => {
@@ -113,10 +114,80 @@ const BattleDisplay = ({ projectiles, teamScores }: BattleDisplayProps) => {
       ctx.textAlign = 'left';
       ctx.fillText('Team A', 50, 305);
 
+      // Draw Team A health bar
+      if (playerHealth) {
+        const healthPercent = playerHealth.teamA / 500;
+        const barWidth = 80;
+        const barHeight = 10;
+        const barX = 40;
+        const barY = 245;
+
+        // Background (dark red)
+        ctx.fillStyle = '#7f1d1d';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+
+        // Health fill (gradient based on health)
+        if (healthPercent > 0.5) {
+          ctx.fillStyle = '#22c55e'; // Green
+        } else if (healthPercent > 0.25) {
+          ctx.fillStyle = '#eab308'; // Yellow
+        } else {
+          ctx.fillStyle = '#ef4444'; // Red
+        }
+        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+
+        // Border
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+        // Health text
+        ctx.fillStyle = 'white';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${playerHealth.teamA}/500`, barX + barWidth / 2, barY - 5);
+      }
+
       // Player 2 (Right side - Red tank)
       drawTank(ctx, 510, 260, '#ef4444');
+      ctx.fillStyle = 'white';
+      ctx.font = '16px monospace';
       ctx.textAlign = 'right';
       ctx.fillText('Team B', 590, 305);
+
+      // Draw Team B health bar
+      if (playerHealth) {
+        const healthPercent = playerHealth.teamB / 500;
+        const barWidth = 80;
+        const barHeight = 10;
+        const barX = 510;
+        const barY = 245;
+
+        // Background (dark red)
+        ctx.fillStyle = '#7f1d1d';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+
+        // Health fill (gradient based on health)
+        if (healthPercent > 0.5) {
+          ctx.fillStyle = '#22c55e'; // Green
+        } else if (healthPercent > 0.25) {
+          ctx.fillStyle = '#eab308'; // Yellow
+        } else {
+          ctx.fillStyle = '#ef4444'; // Red
+        }
+        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+
+        // Border
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+        // Health text
+        ctx.fillStyle = 'white';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${playerHealth.teamB}/500`, barX + barWidth / 2, barY - 5);
+      }
 
       // Draw team scores if provided
       if (teamScores) {
@@ -173,7 +244,7 @@ const BattleDisplay = ({ projectiles, teamScores }: BattleDisplayProps) => {
     };
 
     animate();
-  }, [projectiles, teamScores]);
+  }, [projectiles, teamScores, playerHealth]);
 
   return (
     <canvas

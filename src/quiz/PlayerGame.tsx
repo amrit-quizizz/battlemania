@@ -55,11 +55,14 @@ function PlayerGame() {
     icon: string;
   }>>([]);
   const [previousScores, setPreviousScores] = useState<{ teamA: number; teamB: number }>({ teamA: 0, teamB: 0 });
+  const [playerHealth, setPlayerHealth] = useState<{ teamA: number; teamB: number }>({ teamA: 500, teamB: 500 });
   const [_waitingForOtherPlayer, setWaitingForOtherPlayer] = useState(false);
+  const [gameOver, setGameOver] = useState<{ winner: string; finalHealth: { teamA: number; teamB: number } } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const popupTimerRef = useRef<number | null>(null);
   const battleDisplayTimerRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const hasFiredProjectilesRef = useRef<boolean>(false);
 
   // Get game code and player info from location state
   const { gameCode, playerName, team } = location.state || {};
@@ -201,6 +204,7 @@ function PlayerGame() {
               setShowResult(false);
               setShowPopup(true);
               setShowBattleDisplay(false); // Hide battle initially
+              hasFiredProjectilesRef.current = false; // Reset flag for new round
 
               // Fire cannons based on score change
               const newScoreA = data.scoreA !== undefined ? data.scoreA : gameState?.scoreA || 0;
@@ -209,7 +213,7 @@ function PlayerGame() {
               const scoreChangeA = newScoreA - previousScores.teamA;
               const scoreChangeB = newScoreB - previousScores.teamB;
 
-              console.log('Score changes:', { scoreChangeA, scoreChangeB, previousScores, newScores: { teamA: newScoreA, teamB: newScoreB } });
+              console.log('Score changes:', { scoreChangeA, scoreChangeB, previousScores, newScores: { teamA: newScoreA, teamB: newScoreB }, hasFired: hasFiredProjectilesRef.current });
 
               // Update previous scores for next comparison
               setPreviousScores({ teamA: newScoreA, teamB: newScoreB });
@@ -221,15 +225,23 @@ function PlayerGame() {
               battleDisplayTimerRef.current = setTimeout(() => {
                 setShowBattleDisplay(true);
 
-                // Fire projectiles after battle display is shown
+                // Fire projectiles after battle display is shown (only once)
                 setTimeout(() => {
-                  if (scoreChangeA > 0) {
-                    // Team A scored - fire from left tank to right
-                    fireProjectile('P1', scoreChangeA);
-                  }
-                  if (scoreChangeB > 0) {
-                    // Team B scored - fire from right tank to left
-                    fireProjectile('P2', scoreChangeB);
+                  if (!hasFiredProjectilesRef.current) {
+                    hasFiredProjectilesRef.current = true;
+
+                    if (scoreChangeA > 0) {
+                      // Team A scored - fire from left tank to right
+                      console.log('Firing projectile from Team A with points:', scoreChangeA);
+                      fireProjectile('P1', scoreChangeA);
+                    }
+                    if (scoreChangeB > 0) {
+                      // Team B scored - fire from right tank to left
+                      console.log('Firing projectile from Team B with points:', scoreChangeB);
+                      fireProjectile('P2', scoreChangeB);
+                    }
+                  } else {
+                    console.log('Already fired projectiles for this round, skipping');
                   }
                 }, 300);
               }, 1500);
@@ -248,6 +260,7 @@ function PlayerGame() {
                 setShowPopup(false);
                 setShowBattleDisplay(false);
                 setProjectiles([]); // Clear projectiles
+                // Keep health persistent across turns - don't reset
 
                 if (isGameOver) {
                   // Game is ending, just send continue signal (server will finalize)
@@ -392,6 +405,44 @@ function PlayerGame() {
     console.log('Timer value changed:', timeRemaining, 'showLevelSelection:', showLevelSelection, 'currentQuestion:', currentQuestion);
   }, [timeRemaining, showLevelSelection, currentQuestion]);
 
+  // Check for game over when health reaches 0
+  useEffect(() => {
+    if ((playerHealth.teamA <= 0 || playerHealth.teamB <= 0) && !gameOver) {
+      // Determine winner
+      const winner = playerHealth.teamA > playerHealth.teamB ? 'Team A' : 'Team B';
+
+      console.log('Game over! Health reached 0:', { playerHealth, winner });
+
+      // Set game over state to display in BattleMania modal
+      setGameOver({
+        winner: winner,
+        finalHealth: {
+          teamA: Math.max(0, playerHealth.teamA),
+          teamB: Math.max(0, playerHealth.teamB)
+        }
+      });
+
+      // Show popup with game over
+      setShowPopup(true);
+      setShowBattleDisplay(true);
+
+      // Send end game signal to server
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'end_game',
+          gameCode: gameCode,
+          winner: winner,
+          reason: 'health_depleted'
+        }));
+      }
+
+      // Navigate back to join screen after showing game over
+      setTimeout(() => {
+        navigate('/quiz/join');
+      }, 5000); // Give time to see the victory screen
+    }
+  }, [playerHealth, gameCode, navigate, gameOver]);
+
   // No client-side timers needed - server controls everything
 
   // Handler functions - defined before conditional returns
@@ -451,6 +502,19 @@ function PlayerGame() {
     };
 
     setProjectiles(prev => [...prev, newProjectile]);
+
+    // Reduce opponent's health after a short delay (when projectile hits)
+    setTimeout(() => {
+      setPlayerHealth(prev => {
+        if (fromPlayer === 'P1') {
+          // Team A fired, reduce Team B health
+          return { ...prev, teamB: Math.max(0, prev.teamB - points) };
+        } else {
+          // Team B fired, reduce Team A health
+          return { ...prev, teamA: Math.max(0, prev.teamA - points) };
+        }
+      });
+    }, 1500); // Delay matches approximate projectile flight time
   };
 
   // Continuous animation loop for all projectiles
@@ -790,18 +854,46 @@ function PlayerGame() {
               }}></div>
 
               <div className="result-content" style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
-                <h2 style={{
-                  fontSize: '2.5rem',
-                  marginBottom: '1rem',
-                  color: '#ffd700',
-                  fontWeight: 900,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  textShadow: '0 0 20px rgba(255, 215, 0, 0.5)',
-                  animation: 'pulse 1s ease-in-out infinite'
-                }}>
-                  ⚔️ BATTLE INTERMISSION ⚔️
-                </h2>
+                {gameOver ? (
+                  <>
+                    <h2 style={{
+                      fontSize: '3rem',
+                      marginBottom: '2rem',
+                      color: '#ffd700',
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.1em',
+                      textShadow: '0 0 30px rgba(255, 215, 0, 0.8)',
+                      animation: 'pulse 1.5s ease-in-out infinite'
+                    }}>
+                      🏆 GAME OVER 🏆
+                    </h2>
+                    <h3 style={{
+                      fontSize: '2rem',
+                      marginBottom: '2rem',
+                      color: gameOver.winner === 'Team A' ? '#3b82f6' : '#ef4444',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.15em',
+                      textShadow: `0 0 20px ${gameOver.winner === 'Team A' ? 'rgba(59, 130, 246, 0.6)' : 'rgba(239, 68, 68, 0.6)'}`
+                    }}>
+                      {gameOver.winner} WINS!
+                    </h3>
+                  </>
+                ) : (
+                  <h2 style={{
+                    fontSize: '2.5rem',
+                    marginBottom: '1rem',
+                    color: '#ffd700',
+                    fontWeight: 900,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    textShadow: '0 0 20px rgba(255, 215, 0, 0.5)',
+                    animation: 'pulse 1s ease-in-out infinite'
+                  }}>
+                    ⚔️ BATTLE INTERMISSION ⚔️
+                  </h2>
+                )}
 
                 {/* Battle Display - Shows after delay */}
                 {showBattleDisplay ? (
@@ -816,6 +908,7 @@ function PlayerGame() {
                     <BattleDisplay
                       projectiles={projectiles}
                       teamScores={gameState ? { teamA: gameState.scoreA, teamB: gameState.scoreB } : undefined}
+                      playerHealth={playerHealth}
                     />
                   </div>
                 ) : (
@@ -859,31 +952,69 @@ function PlayerGame() {
                   </div>
                 )}
 
-                <p style={{
-                  fontSize: '1.3rem',
-                  color: 'rgba(255, 255, 255, 0.9)',
-                  fontWeight: 600,
-                  marginBottom: '1rem'
-                }}>
-                  Turn complete! Preparing next round...
-                </p>
+                {gameOver ? (
+                  <>
+                    <p style={{
+                      fontSize: '1.5rem',
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      fontWeight: 600,
+                      marginTop: '2rem',
+                      marginBottom: '1rem'
+                    }}>
+                      Final Health:
+                    </p>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      gap: '3rem',
+                      fontSize: '1.3rem',
+                      fontWeight: 700,
+                      marginBottom: '2rem'
+                    }}>
+                      <div style={{ color: '#3b82f6' }}>
+                        Team A: {gameOver.finalHealth.teamA} HP
+                      </div>
+                      <div style={{ color: '#ef4444' }}>
+                        Team B: {gameOver.finalHealth.teamB} HP
+                      </div>
+                    </div>
+                    <p style={{
+                      fontSize: '1.1rem',
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      fontStyle: 'italic'
+                    }}>
+                      Returning to lobby...
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{
+                      fontSize: '1.3rem',
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      fontWeight: 600,
+                      marginBottom: '1rem'
+                    }}>
+                      Turn complete! Preparing next round...
+                    </p>
 
-                {/* Loading bar */}
-                <div style={{
-                  width: '100%',
-                  height: '8px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  borderRadius: '4px',
-                  overflow: 'hidden',
-                  marginTop: '2rem'
-                }}>
-                  <div style={{
-                    width: '100%',
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #00d4ff 0%, #ff4444 100%)',
-                    animation: 'pulse 1s ease-in-out infinite'
-                  }}></div>
-                </div>
+                    {/* Loading bar */}
+                    <div style={{
+                      width: '100%',
+                      height: '8px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '4px',
+                      overflow: 'hidden',
+                      marginTop: '2rem'
+                    }}>
+                      <div style={{
+                        width: '100%',
+                        height: '100%',
+                        background: 'linear-gradient(90deg, #00d4ff 0%, #ff4444 100%)',
+                        animation: 'pulse 1s ease-in-out infinite'
+                      }}></div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>,
