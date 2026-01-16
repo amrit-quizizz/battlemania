@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import questionsData from './questions.json';
 import './PlayerGame.css';
+import BattleDisplay from './BattleDisplay';
 
 interface Question {
   id: number;
@@ -29,12 +29,12 @@ function PlayerGame() {
   const [error, setError] = useState<string | null>(null);
 
   // Server state machine tracking
-  const [serverState, setServerState] = useState<string>('WAITING');
-  const [turnStartTimestamp, setTurnStartTimestamp] = useState<number | null>(null);
-  const [totalTurnDuration, setTotalTurnDuration] = useState<number>(15000);
+  const [_serverState, setServerState] = useState<string>('WAITING');
+  const [_turnStartTimestamp, setTurnStartTimestamp] = useState<number | null>(null);
+  const [_totalTurnDuration, setTotalTurnDuration] = useState<number>(15000);
 
   const [showLevelSelection, setShowLevelSelection] = useState(false);
-  const [selectedLevel, setSelectedLevel] = useState<'low' | 'medium' | 'hard' | null>(null);
+  const [_selectedLevel, setSelectedLevel] = useState<'low' | 'medium' | 'hard' | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(15); // 15 second timer for the turn
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -42,8 +42,22 @@ function PlayerGame() {
   const [answerResult, setAnswerResult] = useState<'correct' | 'incorrect' | 'not_attempted' | null>(null);
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
+  const [showBattleDisplay, setShowBattleDisplay] = useState(false);
+  const [projectiles, setProjectiles] = useState<Array<{
+    x: number;
+    y: number;
+    targetX: number;
+    targetY: number;
+    speed: number;
+    damage: number;
+    fromPlayer: string;
+    icon: string;
+  }>>([]);
+  const [previousScores, setPreviousScores] = useState<{ teamA: number; teamB: number }>({ teamA: 0, teamB: 0 });
   const wsRef = useRef<WebSocket | null>(null);
-  const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const popupTimerRef = useRef<number | null>(null);
+  const battleDisplayTimerRef = useRef<number | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Get game code and player info from location state
   const { gameCode, playerName, team } = location.state || {};
@@ -184,6 +198,39 @@ function PlayerGame() {
               console.log('State: SHOWING_POPUP', data);
               setShowResult(false);
               setShowPopup(true);
+              setShowBattleDisplay(false); // Hide battle initially
+
+              // Fire cannons based on score change
+              const newScoreA = data.scoreA !== undefined ? data.scoreA : gameState?.scoreA || 0;
+              const newScoreB = data.scoreB !== undefined ? data.scoreB : gameState?.scoreB || 0;
+
+              const scoreChangeA = newScoreA - previousScores.teamA;
+              const scoreChangeB = newScoreB - previousScores.teamB;
+
+              console.log('Score changes:', { scoreChangeA, scoreChangeB, previousScores, newScores: { teamA: newScoreA, teamB: newScoreB } });
+
+              // Update previous scores for next comparison
+              setPreviousScores({ teamA: newScoreA, teamB: newScoreB });
+
+              // Show battle display after 1.5 seconds
+              if (battleDisplayTimerRef.current) {
+                clearTimeout(battleDisplayTimerRef.current);
+              }
+              battleDisplayTimerRef.current = setTimeout(() => {
+                setShowBattleDisplay(true);
+
+                // Fire projectiles after battle display is shown
+                setTimeout(() => {
+                  if (scoreChangeA > 0) {
+                    // Team A scored - fire from left tank to right
+                    fireProjectile('P1', scoreChangeA);
+                  }
+                  if (scoreChangeB > 0) {
+                    // Team B scored - fire from right tank to left
+                    fireProjectile('P2', scoreChangeB);
+                  }
+                }, 300);
+              }, 1500);
 
               // Clear any existing popup timer
               if (popupTimerRef.current) {
@@ -197,6 +244,8 @@ function PlayerGame() {
               popupTimerRef.current = setTimeout(() => {
                 console.log('Popup timer expired');
                 setShowPopup(false);
+                setShowBattleDisplay(false);
+                setProjectiles([]); // Clear projectiles
 
                 if (isGameOver) {
                   // Game is ending, just send continue signal (server will finalize)
@@ -321,6 +370,12 @@ function PlayerGame() {
       if (popupTimerRef.current) {
         clearTimeout(popupTimerRef.current);
       }
+      if (battleDisplayTimerRef.current) {
+        clearTimeout(battleDisplayTimerRef.current);
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
   }, [gameCode, playerName, team, navigate]);
 
@@ -366,13 +421,73 @@ function PlayerGame() {
 
   const checkAnswer = (selectedIndex: number) => {
     if (!currentQuestion) return;
-    
+
     const isCorrect = selectedIndex === currentQuestion.correctAnswer;
     setAnswerResult(isCorrect ? 'correct' : 'incorrect');
-    
+
     // Send answer to server
     sendAnswerToServer(selectedIndex);
   };
+
+  const fireProjectile = (fromPlayer: string, points: number) => {
+    // Scale coordinates for the smaller canvas (600x360)
+    const newProjectile = {
+      x: fromPlayer === 'P1' ? 75 : 525,
+      y: 270,
+      targetX: fromPlayer === 'P1' ? 525 : 75,
+      targetY: 270,
+      speed: 5,
+      damage: points,
+      fromPlayer: fromPlayer,
+      icon: '💣'
+    };
+
+    setProjectiles(prev => [...prev, newProjectile]);
+  };
+
+  // Continuous animation loop for all projectiles
+  useEffect(() => {
+    if (projectiles.length === 0) {
+      return;
+    }
+
+    const animate = () => {
+      setProjectiles(prev => {
+        const updated = prev.map(p => {
+          const dx = p.targetX - p.x;
+          const dy = p.targetY - p.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance < p.speed) {
+            // Projectile reached target, remove it
+            return null;
+          }
+
+          const vx = (dx / distance) * p.speed;
+          const vy = (dy / distance) * p.speed;
+
+          return {
+            ...p,
+            x: p.x + vx,
+            y: p.y + vy
+          };
+        }).filter(p => p !== null) as typeof prev;
+
+        return updated;
+      });
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [projectiles.length]);
 
   const sendAnswerToServer = (answerIndex: number | null, questionId?: number, levelSelectionTimeout?: boolean) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -581,7 +696,7 @@ function PlayerGame() {
               </div>
               
               {showResult && (
-                <div className="result-popup-overlay">
+                <div className="result-popup-overlay" style={{ background: 'transparent' }}>
                   <div className="result-popup">
                     {answerResult === 'correct' && (
                       <div className="result-content correct">
@@ -632,7 +747,7 @@ function PlayerGame() {
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0, 0, 0, 0.85)',
+            background: 'transparent',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -680,45 +795,61 @@ function PlayerGame() {
                   ⚔️ BATTLE INTERMISSION ⚔️
                 </h2>
 
-                {/* Tank Battle Animation */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  margin: '3rem 0',
-                  position: 'relative',
-                  height: '100px'
-                }}>
-                  {/* Blue Team Tank */}
+                {/* Battle Display - Shows after delay */}
+                {showBattleDisplay ? (
                   <div style={{
-                    fontSize: '4rem',
-                    animation: 'tankMove 2s ease-in-out infinite',
-                    filter: 'drop-shadow(0 0 10px rgba(0, 212, 255, 0.8))'
+                    width: '100%',
+                    height: '360px',
+                    margin: '2rem 0',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center'
                   }}>
-                    🛡️
+                    <BattleDisplay
+                      projectiles={projectiles}
+                      teamScores={gameState ? { teamA: gameState.scoreA, teamB: gameState.scoreB } : undefined}
+                    />
                   </div>
+                ) : (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    margin: '3rem 0',
+                    position: 'relative',
+                    height: '100px'
+                  }}>
+                    {/* Blue Team Tank */}
+                    <div style={{
+                      fontSize: '4rem',
+                      animation: 'tankMove 2s ease-in-out infinite',
+                      filter: 'drop-shadow(0 0 10px rgba(0, 212, 255, 0.8))'
+                    }}>
+                      🛡️
+                    </div>
 
-                  {/* Explosion in middle */}
-                  <div style={{
-                    fontSize: '3rem',
-                    animation: 'explosion 1s ease-in-out infinite',
-                    position: 'absolute',
-                    left: '50%',
-                    transform: 'translateX(-50%)'
-                  }}>
-                    💥
-                  </div>
+                    {/* Explosion in middle */}
+                    <div style={{
+                      fontSize: '3rem',
+                      animation: 'explosion 1s ease-in-out infinite',
+                      position: 'absolute',
+                      left: '50%',
+                      transform: 'translateX(-50%)'
+                    }}>
+                      💥
+                    </div>
 
-                  {/* Red Team Tank */}
-                  <div style={{
-                    fontSize: '4rem',
-                    animation: 'tankMove 2s ease-in-out infinite',
-                    animationDirection: 'reverse',
-                    filter: 'drop-shadow(0 0 10px rgba(255, 68, 68, 0.8))'
-                  }}>
-                    ⚡
+                    {/* Red Team Tank */}
+                    <div style={{
+                      fontSize: '4rem',
+                      animation: 'tankMove 2s ease-in-out infinite',
+                      animationDirection: 'reverse',
+                      filter: 'drop-shadow(0 0 10px rgba(255, 68, 68, 0.8))'
+                    }}>
+                      ⚡
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <p style={{
                   fontSize: '1.3rem',
