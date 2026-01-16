@@ -15,7 +15,7 @@ interface GameState {
   scoreB: number;
 }
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3002';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 
 function QuizGame() {
   const navigate = useNavigate();
@@ -41,10 +41,10 @@ function QuizGame() {
 
     ws.onopen = () => {
       console.log('WebSocket connected for quiz game');
-      // Request game state
+      // Join as host to get room updates
       ws.send(JSON.stringify({
-        type: 'get_game_state',
-        gameCode
+        type: 'host_join',
+        roomCode: gameCode
       }));
     };
 
@@ -54,78 +54,57 @@ function QuizGame() {
         console.log('Received message:', data);
 
         switch (data.type) {
-          case 'game_state':
-            // Check if this is a popup state
-            if (data.state === 'SHOWING_POPUP') {
-              console.log('Admin received SHOWING_POPUP', data);
-              setShowPopup(true);
-
-              // Clear any existing popup timer
-              if (popupTimerRef.current) {
-                clearTimeout(popupTimerRef.current);
-              }
-
-              // Check if this is a game over popup
-              const isGameOver = data.isGameOver || false;
-
-              // Auto-continue after 5 seconds
-              popupTimerRef.current = setTimeout(() => {
-                console.log('Admin popup timer expired');
-                setShowPopup(false);
-
-                if (isGameOver) {
-                  // Send continue signal
-                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(JSON.stringify({
-                      type: 'popup_continue',
-                      gameCode: gameCode
-                    }));
-                  }
-                } else {
-                  // Normal turn end, send continue signal
-                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(JSON.stringify({
-                      type: 'popup_continue',
-                      gameCode: gameCode
-                    }));
-                  }
-                }
-              }, 5000);
-
-              // Update scores if provided
-              if (data.scoreA !== undefined || data.scoreB !== undefined) {
-                setGameState(prev => prev ? {
-                  ...prev,
-                  scoreA: data.scoreA !== undefined ? data.scoreA : prev.scoreA,
-                  scoreB: data.scoreB !== undefined ? data.scoreB : prev.scoreB,
-                } : null);
-              }
-            } else {
-              // Normal game state update
-              setGameState({
-                gameCode: data.gameCode,
-                teamA: data.teamA || [],
-                teamB: data.teamB || [],
-                scoreA: data.scoreA || 0,
-                scoreB: data.scoreB || 0,
-              });
-            }
+          case 'host_joined':
+            // Successfully joined as host
+            console.log('Host joined successfully', data);
+            setGameState({
+              gameCode: data.roomCode || gameCode,
+              teamA: data.teamA || [],
+              teamB: data.teamB || [],
+              scoreA: 0,
+              scoreB: 0,
+            });
             break;
 
-          case 'score_update':
+          case 'room_update':
+            // Players joined/left - update team lists
             setGameState(prev => prev ? {
               ...prev,
-              scoreA: data.scoreA || prev.scoreA,
-              scoreB: data.scoreB || prev.scoreB,
+              teamA: data.teamA || prev.teamA,
+              teamB: data.teamB || prev.teamB,
+            } : {
+              gameCode: gameCode,
+              teamA: data.teamA || [],
+              teamB: data.teamB || [],
+              scoreA: 0,
+              scoreB: 0,
+            });
+            break;
+
+          case 'scores_update':
+            // Update scores from team data
+            const teamAScore = data.teamA?.reduce((sum: number, p: { score?: number }) => sum + (p.score || 0), 0) || 0;
+            const teamBScore = data.teamB?.reduce((sum: number, p: { score?: number }) => sum + (p.score || 0), 0) || 0;
+            setGameState(prev => prev ? {
+              ...prev,
+              teamA: data.teamA || prev.teamA,
+              teamB: data.teamB || prev.teamB,
+              scoreA: teamAScore,
+              scoreB: teamBScore,
             } : null);
             break;
 
-          case 'game_ended':
-            console.log('Game ended, navigating to start');
-            navigate('/quiz/init');
+          case 'game_finished':
+            // Game is over - show final scores and navigate
+            console.log('Game finished', data);
+            const finalTeamAScore = data.teamA?.reduce((sum: number, p: { score?: number }) => sum + (p.score || 0), 0) || 0;
+            const finalTeamBScore = data.teamB?.reduce((sum: number, p: { score?: number }) => sum + (p.score || 0), 0) || 0;
+            alert(`Game Over!\nTeam A: ${finalTeamAScore}\nTeam B: ${finalTeamBScore}`);
+            navigate('/admin');
             break;
 
           case 'error':
+            console.error('Server error:', data.message);
             setError(data.message);
             break;
         }

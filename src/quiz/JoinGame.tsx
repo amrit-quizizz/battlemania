@@ -7,7 +7,7 @@ import waygroundLogo from '../assets/waygroundLogo.svg';
 import headerLogo from '../assets/logo.svg';
 import './JoinGame.css';
 
-// Use the same backend for API and WebSocket
+// Use the 3d-quiz-be backend (port 3001)
 const API_URL = import.meta.env.VITE_QUIZ_API_URL || 'http://localhost:3001';
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 
@@ -21,10 +21,14 @@ function JoinGame() {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  // Check if room exists when code is complete
+  // Check if room exists using HTTP API
   const checkRoom = async (code: string) => {
+    if (code.length !== 4) {
+      showToast('Please enter a valid 4-character game code', 'error');
+      return;
+    }
     try {
-      const response = await fetch(`${API_URL}/api/room/${code}`);
+      const response = await fetch(`${API_URL}/api/room/${code.toUpperCase()}`);
       if (response.ok) {
         const data = await response.json();
         setRoomInfo({ topic: data.quizMeta.topic, subject: data.quizMeta.subject });
@@ -59,14 +63,27 @@ function JoinGame() {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
+    // Set a connection timeout
+    const connectionTimeout = setTimeout(() => {
+      if (ws.readyState === WebSocket.CONNECTING) {
+        console.error('WebSocket connection timeout');
+        ws.close();
+        showToast('Connection timeout. Make sure the server is running.', 'error');
+        setIsJoining(false);
+      }
+    }, 5000);
+
     ws.onopen = () => {
-      console.log('WebSocket connected');
-      // Send join request with new message type
-      ws.send(JSON.stringify({
+      clearTimeout(connectionTimeout);
+      console.log('WebSocket connected to', WS_URL);
+      // Use player_join message type for 3d-quiz-be backend
+      const joinMessage = {
         type: 'player_join',
         roomCode: gameCode.trim().toUpperCase(),
         name: playerName.trim()
-      }));
+      };
+      console.log('Sending join message:', joinMessage);
+      ws.send(JSON.stringify(joinMessage));
     };
 
     ws.onmessage = (event) => {
@@ -120,8 +137,13 @@ function JoinGame() {
             break;
 
           case 'error':
+            console.error('Server error:', data.message);
             showToast(data.message || 'An error occurred', 'error');
             setIsJoining(false);
+            // If it's a room not found error, go back to code step
+            if (data.message === 'Room not found') {
+              setStep('code');
+            }
             if (wsRef.current) {
               wsRef.current.close();
               wsRef.current = null;
@@ -135,8 +157,10 @@ function JoinGame() {
       }
     };
 
-    ws.onerror = () => {
-      showToast('Connection error. Please try again.', 'error');
+    ws.onerror = (error) => {
+      clearTimeout(connectionTimeout);
+      console.error('WebSocket connection error:', error);
+      showToast('Connection error. Make sure the server is running on port 3002.', 'error');
       setIsJoining(false);
       if (wsRef.current) {
         wsRef.current.close();
@@ -145,6 +169,7 @@ function JoinGame() {
     };
 
     ws.onclose = (event) => {
+      clearTimeout(connectionTimeout);
       console.log('WebSocket disconnected', event.code);
       if (event.code !== 1000 && event.code !== 1001 && step !== 'waiting') {
         setIsJoining(false);
