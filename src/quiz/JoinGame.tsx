@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react';
 import { useToast } from '../components/Toast';
 import joinPageBg from '../assets/joinPageW.svg';
 import waygroundLogo from '../assets/waygroundLogo.svg';
+import headerLogo from '../assets/logo.svg';
 import './JoinGame.css';
 
 // Use the same backend for API and WebSocket
@@ -175,29 +176,10 @@ function JoinGame() {
         <div className="fixed-header">
           <header className="landing-header">
             <div className="header-left">
-              {/* Wayground Logo - Exact from reference */}
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8 13.1255C8 13.0423 8.06439 12.9689 8.14845 12.9591L15.6831 12.0667C15.744 12.0595 15.8004 12.0947 15.8206 12.1524L23.8973 34.8689C23.9324 34.9678 23.8587 35.0701 23.7545 35.0701H16.1759C16.0919 35.0701 16.0275 34.9968 16.0373 34.9136L8 13.1255Z" fill="white"/>
-                <path d="M28.6904 13H39.8602C39.9526 13 40.0198 13.0888 39.9946 13.1791L33.9686 34.8957C33.9518 34.9563 33.8972 34.9986 33.8342 34.9986H26.2556C26.1716 34.9986 26.1072 34.9253 26.117 34.8421L28.5517 13.1255C28.5615 13.0423 28.6259 12.9689 28.6904 13Z" fill="white"/>
-                <path d="M16.5 13L24 35L31.5 13" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              {/* Wayground Logo from asset */}
+              <img src={headerLogo} alt="Wayground" className="header-logo-img" />
             </div>
             <div className="header-right">
-              {/* Avatar from Wayground - exact from reference */}
-              <button className="avatar-button">
-                <div className="avatar-wrapper">
-                  <div className="avatar-inner">
-                    <div className="avatar-relative">
-                      <img 
-                        src="https://wayground.com/_media/avatar-assets/accessory/o_scarf.svg" 
-                        alt="body-accessory" 
-                        className="avatar-accessory"
-                        style={{ height: '80px', width: '48.3092px' }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </button>
               <button className="header-nav-button">
                 <Icon icon="mdi:storefront" className="button-icon" />
                 <span className="button-text">Go to shop</span>
@@ -332,34 +314,23 @@ function JoinGame() {
             )}
           </div>
 
-          {/* Mascot - positioned on the right */}
-          <div className="mascot-container">
-            <div className="mascot">
-              <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="40" cy="40" r="36" fill="#FFA500"/>
-                <circle cx="30" cy="35" r="6" fill="white"/>
-                <circle cx="50" cy="35" r="6" fill="white"/>
-                <circle cx="32" cy="36" r="3" fill="#333"/>
-                <circle cx="52" cy="36" r="3" fill="#333"/>
-                <path d="M28 50 Q40 60 52 50" stroke="#333" strokeWidth="3" fill="none" strokeLinecap="round"/>
-                <ellipse cx="22" cy="45" rx="4" ry="3" fill="#FF8C00"/>
-                <ellipse cx="58" cy="45" rx="4" ry="3" fill="#FF8C00"/>
-              </svg>
-            </div>
-          </div>
+        </main>
 
-          {/* Footer Wrapper - Matching reference structure */}
-          <div className="footer-wrapper">
-            <footer className="footer" data-testid="footer">
+        {/* Footer Wrapper - Matching Wayground reference */}
+        <div className="footer-wrapper">
+          <footer className="footer" data-testid="footer">
+            <div className="footer-left">
               <a href="#" className="footer-link">Quick links</a>
               <a href="#" className="footer-link">Worksheets</a>
               <a href="#" className="footer-link">Teacher resources</a>
               <a href="#" className="footer-link">Library</a>
+            </div>
+            <div className="footer-right">
               <a href="#" className="footer-link">Accessibility &amp; Inclusion</a>
               <span className="footer-copyright">© 2026 Quizizz Inc. (DBA Wayground)</span>
-            </footer>
-          </div>
-        </main>
+            </div>
+          </footer>
+        </div>
       </div>
     </div>
   );
