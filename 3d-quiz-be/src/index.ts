@@ -10,7 +10,6 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
-const WS_PORT = process.env.WS_PORT || 3003;
 
 // Types
 interface Question {
@@ -61,6 +60,11 @@ interface GameRoom {
   status: 'waiting' | 'playing' | 'finished';
   currentQuestionIndex: number;
   createdAt: Date;
+  // Battle mode additions
+  teamAHealth: number;
+  teamBHealth: number;
+  usedQuestionIds: Set<number>; // Track which questions have been used
+  playerCurrentQuestion: Map<string, number>; // playerId -> questionId currently answering
 }
 
 // Room storage
@@ -269,6 +273,11 @@ app.post('/api/generate-quiz', async (req, res) => {
       status: 'waiting',
       currentQuestionIndex: 0,
       createdAt: new Date(),
+      // Battle mode - health starts at 100 for each team
+      teamAHealth: 100,
+      teamBHealth: 100,
+      usedQuestionIds: new Set(),
+      playerCurrentQuestion: new Map(),
     };
     rooms.set(roomCode, room);
 
@@ -318,7 +327,14 @@ app.get('/health', (req, res) => {
 // ============ WebSocket Server ============
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ 
+  server,
+  // Allow connections from any origin (development)
+  verifyClient: (info) => {
+    console.log('WebSocket connection attempt from origin:', info.origin);
+    return true; // Accept all connections in development
+  }
+});
 
 function broadcastToRoom(room: GameRoom, message: object, excludeWs?: WebSocket) {
   const data = JSON.stringify(message);
@@ -349,17 +365,26 @@ function getTeamsList(room: GameRoom) {
   };
 }
 
-wss.on('connection', (ws) => {
-  console.log('New WebSocket connection');
+wss.on('connection', (ws, req) => {
+  console.log('New WebSocket connection from:', req.socket.remoteAddress);
+  console.log('Request headers:', req.headers);
 
   let currentRoom: GameRoom | null = null;
   let playerId: string | null = null;
   let isHost = false;
+  
+  // Send ping to keep connection alive
+  const pingInterval = setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.ping();
+    }
+  }, 30000); // Ping every 30 seconds
 
   ws.on('message', (data) => {
     try {
       const message = JSON.parse(data.toString());
-      console.log('Received:', message.type);
+      console.log('Received message:', message.type, 'from:', playerId || 'new connection');
+      console.log('Message details:', JSON.stringify(message, null, 2));
 
       switch (message.type) {
         // Teacher joins as host
@@ -378,6 +403,8 @@ wss.on('connection', (ws) => {
             type: 'host_joined',
             roomCode: room.code,
             quizMeta: room.quizMeta,
+            teamAHealth: room.teamAHealth,
+            teamBHealth: room.teamBHealth,
             ...getTeamsList(room),
           }));
           break;
@@ -391,27 +418,52 @@ wss.on('connection', (ws) => {
             return;
           }
 
-          if (room.status !== 'waiting') {
-            ws.send(JSON.stringify({ type: 'error', message: 'Game already started' }));
+          if (room.status === 'finished') {
+            ws.send(JSON.stringify({ type: 'error', message: 'Game has ended' }));
             return;
           }
 
-          const id = Math.random().toString(36).substr(2, 9);
-          const player: Player = {
-            id,
-            name: message.name || `Player ${room.players.size + 1}`,
-            visitorId: message.visitorId,
-            score: 0,
-            ws,
-          };
+          // Check if this is a reconnection (player with same ID trying to reconnect)
+          let existingPlayer: Player | undefined;
+          if (message.playerId) {
+            existingPlayer = room.players.get(message.playerId);
+          }
 
-          room.players.set(id, player);
+          let id: string;
+          let player: Player;
+          let team: 'A' | 'B';
 
-          // Auto-assign to team with fewer players
-          if (room.teamA.length <= room.teamB.length) {
-            room.teamA.push(id);
+          if (existingPlayer) {
+            // Reconnection - update WebSocket reference
+            id = existingPlayer.id;
+            existingPlayer.ws = ws;
+            player = existingPlayer;
+            team = room.teamA.includes(id) ? 'A' : 'B';
+          } else if (room.status === 'playing') {
+            // New player trying to join during game - don't allow
+            ws.send(JSON.stringify({ type: 'error', message: 'Game already started' }));
+            return;
           } else {
-            room.teamB.push(id);
+            // New player joining in waiting state
+            id = Math.random().toString(36).substr(2, 9);
+            player = {
+              id,
+              name: message.name || `Player ${room.players.size + 1}`,
+              visitorId: message.visitorId,
+              score: 0,
+              ws,
+            };
+
+            room.players.set(id, player);
+
+            // Auto-assign to team with fewer players
+            if (room.teamA.length <= room.teamB.length) {
+              room.teamA.push(id);
+              team = 'A';
+            } else {
+              room.teamB.push(id);
+              team = 'B';
+            }
           }
 
           currentRoom = room;
@@ -420,10 +472,23 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({
             type: 'player_joined',
             playerId: id,
-            team: room.teamA.includes(id) ? 'A' : 'B',
+            team,
             roomCode: room.code,
             quizMeta: room.quizMeta,
+            teamAHealth: room.teamAHealth,
+            teamBHealth: room.teamBHealth,
+            gameStatus: room.status,
           }));
+
+          // If game is already playing, send game_started so player knows to show level selection
+          if (room.status === 'playing') {
+            ws.send(JSON.stringify({
+              type: 'game_started',
+              totalQuestions: room.questions.length,
+              teamAHealth: room.teamAHealth,
+              teamBHealth: room.teamBHealth,
+            }));
+          }
 
           // Broadcast updated player list
           broadcastToRoom(room, {
@@ -448,21 +513,91 @@ wss.on('connection', (ws) => {
           currentRoom.status = 'playing';
           currentRoom.currentQuestionIndex = 0;
 
+          // Broadcast game started - players will now select difficulty levels
           broadcastToRoom(currentRoom, {
             type: 'game_started',
             totalQuestions: currentRoom.questions.length,
+            teamAHealth: currentRoom.teamAHealth,
+            teamBHealth: currentRoom.teamBHealth,
           });
+          // Don't send first question automatically - players will select difficulty
+          break;
+        }
 
-          // Send first question
-          const firstQuestion = currentRoom.questions[0];
-          broadcastToRoom(currentRoom, {
+        // Player selects difficulty level - get a random question from that difficulty
+        case 'select_level': {
+          if (!currentRoom || !playerId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not in a room' }));
+            return;
+          }
+
+          if (currentRoom.status !== 'playing') {
+            ws.send(JSON.stringify({ type: 'error', message: 'Game not started' }));
+            return;
+          }
+
+          const difficulty = message.difficulty as 'easy' | 'medium' | 'hard';
+          if (!['easy', 'medium', 'hard'].includes(difficulty)) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Invalid difficulty' }));
+            return;
+          }
+
+          // Find available questions of this difficulty
+          const availableQuestions = currentRoom.questions.filter(
+            q => q.difficulty === difficulty && !currentRoom.usedQuestionIds.has(q.id)
+          );
+
+          if (availableQuestions.length === 0) {
+            // No more questions of this difficulty - use any available
+            const anyAvailable = currentRoom.questions.filter(
+              q => !currentRoom.usedQuestionIds.has(q.id)
+            );
+            
+            if (anyAvailable.length === 0) {
+              // No questions left - end game
+              currentRoom.status = 'finished';
+              const winner = currentRoom.teamAHealth > currentRoom.teamBHealth ? 'A' : 
+                            currentRoom.teamBHealth > currentRoom.teamAHealth ? 'B' : 'draw';
+              
+              broadcastToRoom(currentRoom, {
+                type: 'game_finished',
+                winner,
+                teamAHealth: currentRoom.teamAHealth,
+                teamBHealth: currentRoom.teamBHealth,
+                ...getTeamsList(currentRoom),
+              });
+              return;
+            }
+            
+            // Pick a random available question
+            const randomQuestion = anyAvailable[Math.floor(Math.random() * anyAvailable.length)];
+            currentRoom.usedQuestionIds.add(randomQuestion.id);
+            currentRoom.playerCurrentQuestion.set(playerId, randomQuestion.id);
+            
+            ws.send(JSON.stringify({
+              type: 'question',
+              questionIndex: randomQuestion.id,
+              question: randomQuestion.question,
+              options: randomQuestion.options,
+              difficulty: randomQuestion.difficulty,
+              totalQuestions: currentRoom.questions.length,
+            }));
+            return;
+          }
+
+          // Pick a random question from available ones
+          const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
+          currentRoom.usedQuestionIds.add(randomQuestion.id);
+          currentRoom.playerCurrentQuestion.set(playerId, randomQuestion.id);
+
+          ws.send(JSON.stringify({
             type: 'question',
-            questionIndex: 0,
-            question: firstQuestion.question,
-            options: firstQuestion.options,
-            difficulty: firstQuestion.difficulty,
+            questionIndex: randomQuestion.id,
+            question: randomQuestion.question,
+            options: randomQuestion.options,
+            difficulty: randomQuestion.difficulty,
             totalQuestions: currentRoom.questions.length,
-          });
+          }));
           break;
         }
 
@@ -473,21 +608,65 @@ wss.on('connection', (ws) => {
           const player = currentRoom.players.get(playerId);
           if (!player) return;
 
-          const questionIndex = message.questionIndex;
-          const question = currentRoom.questions[questionIndex];
+          // Get the question the player is answering
+          const questionId = currentRoom.playerCurrentQuestion.get(playerId);
+          if (!questionId) return;
+
+          const question = currentRoom.questions.find(q => q.id === questionId);
           if (!question) return;
 
+          // Clear the current question
+          currentRoom.playerCurrentQuestion.delete(playerId);
+
           const isCorrect = message.answer === question.correctAnswer;
+          const damage = question.difficulty === 'easy' ? 10 : question.difficulty === 'medium' ? 20 : 30;
+          
           if (isCorrect) {
-            const points = question.difficulty === 'easy' ? 10 : question.difficulty === 'medium' ? 20 : 30;
-            player.score += points;
+            // Award points to player
+            player.score += damage;
+            
+            // Determine which team to damage (enemy team)
+            const playerTeam = currentRoom.teamA.includes(playerId) ? 'A' : 'B';
+            const enemyTeam = playerTeam === 'A' ? 'B' : 'A';
+            
+            // Apply damage to enemy team
+            if (enemyTeam === 'A') {
+              currentRoom.teamAHealth = Math.max(0, currentRoom.teamAHealth - damage);
+            } else {
+              currentRoom.teamBHealth = Math.max(0, currentRoom.teamBHealth - damage);
+            }
+
+            // Send fire_ammunition event to host
+            if (currentRoom.hostWs && currentRoom.hostWs.readyState === WebSocket.OPEN) {
+              currentRoom.hostWs.send(JSON.stringify({
+                type: 'fire_ammunition',
+                fromTeam: playerTeam,
+                toTeam: enemyTeam,
+                damage,
+                playerName: player.name,
+                difficulty: question.difficulty,
+                teamAHealth: currentRoom.teamAHealth,
+                teamBHealth: currentRoom.teamBHealth,
+              }));
+            }
+
+            // Broadcast health update to all
+            broadcastToRoom(currentRoom, {
+              type: 'health_update',
+              teamAHealth: currentRoom.teamAHealth,
+              teamBHealth: currentRoom.teamBHealth,
+            });
           }
 
+          // Send result to player
           ws.send(JSON.stringify({
             type: 'answer_result',
             correct: isCorrect,
             correctAnswer: question.correctAnswer,
             score: player.score,
+            damage: isCorrect ? damage : 0,
+            teamAHealth: currentRoom.teamAHealth,
+            teamBHealth: currentRoom.teamBHealth,
           }));
 
           // Broadcast updated scores
@@ -495,10 +674,24 @@ wss.on('connection', (ws) => {
             type: 'scores_update',
             ...getTeamsList(currentRoom),
           });
+
+          // Check if game should end (a team's health reached 0)
+          if (currentRoom.teamAHealth <= 0 || currentRoom.teamBHealth <= 0) {
+            currentRoom.status = 'finished';
+            const winner = currentRoom.teamAHealth <= 0 ? 'B' : 'A';
+            
+            broadcastToRoom(currentRoom, {
+              type: 'game_finished',
+              winner,
+              teamAHealth: currentRoom.teamAHealth,
+              teamBHealth: currentRoom.teamBHealth,
+              ...getTeamsList(currentRoom),
+            });
+          }
           break;
         }
 
-        // Host advances to next question
+        // Host advances to next question (legacy - kept for compatibility)
         case 'next_question': {
           if (!currentRoom || !isHost) return;
 
@@ -506,8 +699,14 @@ wss.on('connection', (ws) => {
 
           if (currentRoom.currentQuestionIndex >= currentRoom.questions.length) {
             currentRoom.status = 'finished';
+            const winner = currentRoom.teamAHealth > currentRoom.teamBHealth ? 'A' : 
+                          currentRoom.teamBHealth > currentRoom.teamAHealth ? 'B' : 'draw';
+            
             broadcastToRoom(currentRoom, {
               type: 'game_finished',
+              winner,
+              teamAHealth: currentRoom.teamAHealth,
+              teamBHealth: currentRoom.teamBHealth,
               ...getTeamsList(currentRoom),
             });
             return;
@@ -524,33 +723,80 @@ wss.on('connection', (ws) => {
           });
           break;
         }
+
+        // Host ends the game manually
+        case 'end_game': {
+          if (!currentRoom || !isHost) return;
+
+          currentRoom.status = 'finished';
+          const winner = currentRoom.teamAHealth > currentRoom.teamBHealth ? 'A' : 
+                        currentRoom.teamBHealth > currentRoom.teamAHealth ? 'B' : 'draw';
+          
+          broadcastToRoom(currentRoom, {
+            type: 'game_finished',
+            winner,
+            teamAHealth: currentRoom.teamAHealth,
+            teamBHealth: currentRoom.teamBHealth,
+            ...getTeamsList(currentRoom),
+          });
+          break;
+        }
       }
     } catch (err) {
       console.error('Error processing message:', err);
+      console.error('Raw data:', data.toString());
+      ws.send(JSON.stringify({ 
+        type: 'error', 
+        message: 'Invalid message format: ' + (err instanceof Error ? err.message : 'Unknown error')
+      }));
     }
   });
 
-  ws.on('close', () => {
-    console.log('WebSocket disconnected');
+  ws.on('pong', () => {
+    // Connection is alive
+  });
+
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+  });
+
+  ws.on('close', (code, reason) => {
+    console.log(`WebSocket disconnected - code: ${code}, reason: ${reason}`);
+    
+    // Clear ping interval
+    clearInterval(pingInterval);
 
     if (currentRoom && playerId) {
-      currentRoom.players.delete(playerId);
-      currentRoom.teamA = currentRoom.teamA.filter(id => id !== playerId);
-      currentRoom.teamB = currentRoom.teamB.filter(id => id !== playerId);
-
-      broadcastToRoom(currentRoom, {
-        type: 'room_update',
-        ...getTeamsList(currentRoom),
-      });
+      // Don't remove player immediately - allow reconnection
+      // Just set WebSocket to null so they can reconnect later
+      const player = currentRoom.players.get(playerId);
+      if (player) {
+        // Mark player as disconnected but keep them in the game
+        console.log(`Player ${player.name} (${playerId}) disconnected but kept in game`);
+        // We can reconnect them when they send player_join with same playerId
+      }
+      
+      // Only broadcast room update, don't remove from teams
+      // This allows the player to reconnect
     }
 
     if (currentRoom && isHost) {
       currentRoom.hostWs = null;
+      console.log('Host disconnected');
     }
   });
 });
 
 // Start server
 server.listen(PORT, () => {
-  console.log(`Quiz API + WebSocket server running on port ${PORT}`);
+  console.log(`
+╔════════════════════════════════════════════╗
+║  Quiz API + WebSocket Server Running      ║
+╠════════════════════════════════════════════╣
+║  HTTP API: http://localhost:${PORT}        ║
+║  WebSocket: ws://localhost:${PORT}         ║
+║  Health: http://localhost:${PORT}/health   ║
+╚════════════════════════════════════════════╝
+  `);
+  console.log('Waiting for connections...\n');
 });

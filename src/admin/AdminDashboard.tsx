@@ -73,7 +73,7 @@ export default function AdminDashboard() {
       image: ASSETS.battleModeLogo,
       title: 'Battle Mode',
       description: 'Team vs team quiz battles',
-      onClick: () => navigate('/battle-mode'),
+      onClick: () => navigate('/admin/battle-field'),
     },
   ]
 

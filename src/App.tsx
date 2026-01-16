@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import StartGame from './quiz/StartGame'
 import JoinGame from './quiz/JoinGame'
 import QuizGame from './quiz/QuizGame'
-import PlayerGame from './quiz/PlayerGame'
 import SideScrollGame from './3d-game/SideScrollGame'
 import AdminDashboard from './admin/AdminDashboard'
 import BattleMode from './admin/BattleMode'
@@ -34,15 +33,22 @@ function App() {
   return (
     <ToastProvider>
       <Routes>
+        {/* Default redirect */}
         <Route path="/" element={<Navigate to="/admin" replace />} />
+        
+        {/* Admin routes - all on /admin/battle-field (no route changes!) */}
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/battle-field" element={<BattleMode />} />
+        
+        {/* Student routes - all on /join (no route changes = no disconnects!) */}
         <Route path="/join" element={<JoinGame />} />
-        <Route path="/battle-mode" element={<BattleMode />} />
+        
+        {/* Legacy routes (kept for backwards compatibility) */}
+        <Route path="/battle-mode" element={<Navigate to="/admin/battle-field" replace />} />
         <Route path="/battlemania" element={<BattleManiaRoute />} />
         <Route path="/game-three-d" element={<SideScrollGame />} />
         <Route path="/quiz/init" element={<StartGame />} />
         <Route path="/quiz/game" element={<QuizGame />} />
-        <Route path="/quiz/player-game" element={<PlayerGame />} />
       </Routes>
     </ToastProvider>
   )

@@ -1,6 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Canvas, useThree } from '@react-three/fiber'
+import { Physics } from '@react-three/rapier'
+import { PerspectiveCamera } from '@react-three/drei'
 import { Icon } from '@iconify/react'
+import * as THREE from 'three'
 import { useToast } from '../components/Toast'
 import {
   COLORS,
@@ -17,6 +21,17 @@ import {
   SUBJECTS,
   GRADE_LEVELS,
 } from '../config/design'
+import CleanBattleScene from '../3d-game/components/CleanBattleScene'
+import { ScoreCard3D } from '../3d-game/components/ScoreCard3D'
+import { HealthBarOverlay } from '../3d-game/components/HealthBarOverlay'
+import { 
+  cameraConfig, 
+  environmentConfig, 
+  physicsConfig, 
+  uiConfig, 
+  playerConfig 
+} from '../3d-game/config/gameConfig'
+import { resetHealth } from '../3d-game/utils/healthDamageSystem'
 
 // API URL (WebSocket is on same port)
 const API_URL = import.meta.env.VITE_QUIZ_API_URL || 'http://localhost:3001'
@@ -45,18 +60,38 @@ interface Player {
   score?: number
 }
 
-type ViewState = 'form' | 'creating' | 'lobby'
+interface FireEvent {
+  fromTeam: 'A' | 'B'
+  toTeam: 'A' | 'B'
+  damage: number
+  playerName: string
+  difficulty: 'easy' | 'medium' | 'hard'
+}
+
+interface GameResult {
+  winner: 'A' | 'B' | 'draw'
+  teamAHealth: number
+  teamBHealth: number
+  teamA: Player[]
+  teamB: Player[]
+}
+
+type ViewState = 'form' | 'creating' | 'lobby' | 'battle' | 'results'
+
+// Component to set scene background color
+function SceneBackground() {
+  const { scene } = useThree()
+  useEffect(() => {
+    scene.background = new THREE.Color(environmentConfig.sky.primaryColor)
+  }, [scene])
+  return null
+}
 
 export default function BattleMode() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-  // Debug log
-  useEffect(() => {
-    console.log('BattleMode component mounted')
-  }, [])
-  
-  // View state
+  // View state - now includes 'battle' and 'results'
   const [viewState, setViewState] = useState<ViewState>('form')
   const [isAnimating, setIsAnimating] = useState(false)
   
@@ -64,7 +99,6 @@ export default function BattleMode() {
   const [subject, setSubject] = useState('')
   const [topic, setTopic] = useState('')
   const [gradeLevel, setGradeLevel] = useState('')
-  const [difficulty, setDifficulty] = useState('')
   const [numberOfQuestions, setNumberOfQuestions] = useState('10')
   const [additionalDetails, setAdditionalDetails] = useState('')
   
@@ -72,18 +106,31 @@ export default function BattleMode() {
   const [gameCode, setGameCode] = useState<string | null>(null)
   const [teamA, setTeamA] = useState<Player[]>([])
   const [teamB, setTeamB] = useState<Player[]>([])
+  const [teamAHealth, setTeamAHealth] = useState(100)
+  const [teamBHealth, setTeamBHealth] = useState(100)
   const [isConnecting, setIsConnecting] = useState(false)
   const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([])
   const [generationStatus, setGenerationStatus] = useState<string>('')
+  const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'finished'>('waiting')
+  const [fireEvents, setFireEvents] = useState<FireEvent[]>([])
+  const [gameResult, setGameResult] = useState<GameResult | null>(null)
+  const [showControls, setShowControls] = useState(true)
   
   // WebSocket ref
   const wsRef = useRef<WebSocket | null>(null)
+
+  // Initialize 3D health system when entering battle view
+  useEffect(() => {
+    if (viewState === 'battle') {
+      resetHealth()
+    }
+  }, [viewState])
 
   // Cleanup WebSocket on unmount
   useEffect(() => {
     return () => {
       if (wsRef.current) {
-        wsRef.current.close()
+        wsRef.current.close(1000, 'Admin page unmounting')
       }
     }
   }, [])
@@ -102,7 +149,7 @@ export default function BattleMode() {
 
     ws.onopen = () => {
       clearTimeout(connectionTimeout)
-      // Join as host
+      console.log('WebSocket connected - joining as host:', roomCode)
       ws.send(JSON.stringify({
         type: 'host_join',
         roomCode,
@@ -116,12 +163,66 @@ export default function BattleMode() {
 
         switch (data.type) {
           case 'host_joined':
-            // Host successfully joined - we're already in lobby
+            setTeamA(data.teamA || [])
+            setTeamB(data.teamB || [])
+            setTeamAHealth(data.teamAHealth ?? 100)
+            setTeamBHealth(data.teamBHealth ?? 100)
             break
 
           case 'room_update':
             setTeamA(data.teamA || [])
             setTeamB(data.teamB || [])
+            break
+
+          case 'game_started':
+            setGameStatus('playing')
+            setTeamAHealth(data.teamAHealth ?? 100)
+            setTeamBHealth(data.teamBHealth ?? 100)
+            showToast('Battle started! Students can now answer questions.', 'success')
+            break
+
+          case 'fire_ammunition':
+            const fireEvent: FireEvent = {
+              fromTeam: data.fromTeam,
+              toTeam: data.toTeam,
+              damage: data.damage,
+              playerName: data.playerName,
+              difficulty: data.difficulty,
+            }
+            setFireEvents(prev => [...prev, fireEvent])
+            setTeamAHealth(data.teamAHealth)
+            setTeamBHealth(data.teamBHealth)
+            
+            showToast(
+              `${data.playerName} hit Team ${data.toTeam} for ${data.damage} damage!`,
+              'success'
+            )
+            
+            setTimeout(() => {
+              setFireEvents(prev => prev.filter(e => e !== fireEvent))
+            }, 2000)
+            break
+
+          case 'health_update':
+            setTeamAHealth(data.teamAHealth)
+            setTeamBHealth(data.teamBHealth)
+            break
+
+          case 'scores_update':
+            setTeamA(data.teamA || [])
+            setTeamB(data.teamB || [])
+            break
+
+          case 'game_finished':
+            setGameStatus('finished')
+            setGameResult({
+              winner: data.winner,
+              teamAHealth: data.teamAHealth,
+              teamBHealth: data.teamBHealth,
+              teamA: data.teamA || [],
+              teamB: data.teamB || [],
+            })
+            setViewState('results')
             break
 
           case 'error':
@@ -133,13 +234,15 @@ export default function BattleMode() {
       }
     }
 
-    ws.onerror = () => {
+    ws.onerror = (error) => {
       clearTimeout(connectionTimeout)
+      console.error('WebSocket error:', error)
       showToast('Failed to connect to game server.', 'error')
     }
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       clearTimeout(connectionTimeout)
+      console.log(`WebSocket closed - Code: ${event.code}, Reason: ${event.reason}`)
     }
   }
 
@@ -161,7 +264,6 @@ export default function BattleMode() {
     }
 
     try {
-      // Step 1: Generate quiz via API (this also creates the room)
       const quizResponse = await fetch(`${API_URL}/api/generate-quiz`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -185,11 +287,11 @@ export default function BattleMode() {
       setGenerationStatus('')
       setIsConnecting(false)
 
-      // Step 2: Move to lobby and connect as host
+      // Move to lobby and connect as host
       setViewState('lobby')
       setIsAnimating(false)
 
-      // Connect to WebSocket as host for real-time updates
+      // Connect to WebSocket - it will stay connected through all states!
       connectAsHost(quizData.roomCode)
 
     } catch (err) {
@@ -206,8 +308,16 @@ export default function BattleMode() {
 
   const handleStartGame = () => {
     if (gameCode && wsRef.current?.readyState === WebSocket.OPEN) {
+      // DON'T navigate - just change view state!
+      setViewState('battle')
+      // Send start message
       wsRef.current.send(JSON.stringify({ type: 'start_game' }))
-      navigate('/quiz/game', { state: { gameCode, questions: generatedQuestions } })
+    }
+  }
+
+  const handleEndGame = () => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'end_game' }))
     }
   }
 
@@ -217,6 +327,31 @@ export default function BattleMode() {
       wsRef.current = null
     }
     navigate('/admin')
+  }
+
+  const handleNewBattle = () => {
+    // Close WebSocket and reset to form
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+    
+    // Reset all state
+    setViewState('form')
+    setGameCode(null)
+    setTeamA([])
+    setTeamB([])
+    setTeamAHealth(100)
+    setTeamBHealth(100)
+    setGameStatus('waiting')
+    setGeneratedQuestions([])
+    setGameResult(null)
+    setFireEvents([])
+    setSubject('')
+    setTopic('')
+    setGradeLevel('')
+    setNumberOfQuestions('10')
+    setAdditionalDetails('')
   }
 
   // Common input styles
@@ -253,6 +388,403 @@ export default function BattleMode() {
     marginBottom: SPACING[1],
   }
 
+  // ========== RENDER RESULTS VIEW ==========
+  if (viewState === 'results' && gameResult) {
+    const teamAScore = gameResult.teamA.reduce((sum, p) => sum + (p.score || 0), 0)
+    const teamBScore = gameResult.teamB.reduce((sum, p) => sum + (p.score || 0), 0)
+    
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        backgroundColor: '#1a1a2e',
+        color: 'white',
+        flexDirection: 'column',
+        gap: '30px',
+        padding: '40px'
+      }}>
+        <h1 style={{ fontSize: '48px', marginBottom: '10px' }}>
+          {gameResult.winner === 'draw' ? '🤝 Draw!' : 
+           gameResult.winner === 'A' ? '🔵 Team Blue Wins!' : '🔴 Team Red Wins!'}
+        </h1>
+        
+        <div style={{ display: 'flex', gap: '60px', marginBottom: '30px' }}>
+          <div style={{
+            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+            border: '2px solid #3b82f6',
+            borderRadius: '16px',
+            padding: '24px',
+            minWidth: '250px',
+            textAlign: 'center'
+          }}>
+            <h2 style={{ color: '#3b82f6', marginBottom: '15px' }}>Team Blue</h2>
+            <div style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '10px' }}>
+              {gameResult.teamAHealth} HP
+            </div>
+            <div style={{ fontSize: '24px', color: '#22c55e', marginBottom: '20px' }}>
+              {teamAScore} points
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '15px' }}>
+              {gameResult.teamA.map(p => (
+                <div key={p.id} style={{ padding: '5px 0', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{p.name}</span>
+                  <span>{p.score} pts</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+            border: '2px solid #ef4444',
+            borderRadius: '16px',
+            padding: '24px',
+            minWidth: '250px',
+            textAlign: 'center'
+          }}>
+            <h2 style={{ color: '#ef4444', marginBottom: '15px' }}>Team Red</h2>
+            <div style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '10px' }}>
+              {gameResult.teamBHealth} HP
+            </div>
+            <div style={{ fontSize: '24px', color: '#22c55e', marginBottom: '20px' }}>
+              {teamBScore} points
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '15px' }}>
+              {gameResult.teamB.map(p => (
+                <div key={p.id} style={{ padding: '5px 0', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{p.name}</span>
+                  <span>{p.score} pts</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '20px' }}>
+          <button
+            onClick={handleNewBattle}
+            style={{
+              padding: '15px 30px',
+              fontSize: '18px',
+              backgroundColor: '#8b5cf6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            New Battle
+          </button>
+          <button
+            onClick={handleBackToAdmin}
+            style={{
+              padding: '15px 30px',
+              fontSize: '18px',
+              backgroundColor: 'transparent',
+              color: 'white',
+              border: '1px solid white',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ========== RENDER BATTLE VIEW ==========
+  if (viewState === 'battle') {
+    return (
+      <div style={{
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: environmentConfig.sky.primaryColor,
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        <Canvas shadows gl={{ alpha: cameraConfig.canvas.alpha, antialias: cameraConfig.canvas.antialias }}>
+          <PerspectiveCamera
+            makeDefault
+            position={cameraConfig.perspective.position}
+            fov={cameraConfig.perspective.fov}
+            near={cameraConfig.perspective.near}
+            far={cameraConfig.perspective.far}
+          />
+          <fog attach="fog" color={environmentConfig.fog.color} near={environmentConfig.fog.near} far={environmentConfig.fog.far} />
+          <SceneBackground />
+          <color attach="background" args={[environmentConfig.sky.primaryColor]} />
+          
+          <Physics gravity={physicsConfig.gravity} debug={false}>
+            <Suspense fallback={null}>
+              <CleanBattleScene />
+            </Suspense>
+          </Physics>
+          
+          <ScoreCard3D 
+            position={uiConfig.scoreCard3D.player1Position} 
+            player="player1" 
+            playerName={`BLUE (${teamAHealth} HP)`}
+            teamColor={playerConfig.player1Color}
+            scale={uiConfig.scoreCard3D.scale}
+          />
+          <ScoreCard3D 
+            position={uiConfig.scoreCard3D.player2Position} 
+            player="player2" 
+            playerName={`RED (${teamBHealth} HP)`}
+            teamColor={playerConfig.player2Color}
+            scale={uiConfig.scoreCard3D.scale}
+          />
+        </Canvas>
+        
+        <HealthBarOverlay />
+        
+        {/* Fire Event Notifications */}
+        <div style={{
+          position: 'absolute',
+          top: '120px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          zIndex: 100,
+        }}>
+          {fireEvents.map((event, idx) => (
+            <div
+              key={idx}
+              style={{
+                backgroundColor: event.fromTeam === 'A' ? 'rgba(59, 130, 246, 0.9)' : 'rgba(239, 68, 68, 0.9)',
+                color: 'white',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                animation: 'slideIn 0.3s ease-out',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+              }}
+            >
+              🔥 {event.playerName} - {event.damage} damage! ({event.difficulty})
+            </div>
+          ))}
+        </div>
+        
+        {/* Toggle Controls Button */}
+        <button
+          onClick={() => setShowControls(!showControls)}
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '10px 15px',
+            cursor: 'pointer',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <Icon icon={showControls ? 'mdi:eye-off' : 'mdi:eye'} />
+          {showControls ? 'Hide' : 'Show'} Controls
+        </button>
+        
+        {/* Floating Teacher Controls Panel */}
+        {showControls && (
+          <div style={{
+            position: 'absolute',
+            top: '70px',
+            right: '20px',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            borderRadius: '16px',
+            padding: '20px',
+            width: '320px',
+            color: 'white',
+            zIndex: 100,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(10px)',
+          }}>
+            <div style={{
+              backgroundColor: 'rgba(139, 92, 246, 0.3)',
+              borderRadius: '12px',
+              padding: '15px',
+              textAlign: 'center',
+              marginBottom: '20px',
+            }}>
+              <div style={{ fontSize: '12px', opacity: 0.7, marginBottom: '5px' }}>GAME CODE</div>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', letterSpacing: '4px' }}>
+                {gameCode?.toUpperCase()}
+              </div>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>Team Blue</span>
+                <span>{teamAHealth} HP</span>
+              </div>
+              <div style={{
+                height: '12px',
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                marginBottom: '15px',
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${teamAHealth}%`,
+                  backgroundColor: '#3b82f6',
+                  transition: 'width 0.5s ease',
+                }} />
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ color: '#ef4444', fontWeight: 'bold' }}>Team Red</span>
+                <span>{teamBHealth} HP</span>
+              </div>
+              <div style={{
+                height: '12px',
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${teamBHealth}%`,
+                  backgroundColor: '#ef4444',
+                  transition: 'width 0.5s ease',
+                }} />
+              </div>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
+              <div>
+                <div style={{ fontSize: '12px', opacity: 0.7, marginBottom: '8px' }}>TEAM BLUE ({teamA.length})</div>
+                <div style={{ maxHeight: '100px', overflowY: 'auto' }}>
+                  {teamA.map(p => (
+                    <div key={p.id} style={{ 
+                      fontSize: '13px', 
+                      padding: '4px 8px',
+                      backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                      borderRadius: '4px',
+                      marginBottom: '4px',
+                      display: 'flex',
+                      justifyContent: 'space-between'
+                    }}>
+                      <span>{p.name}</span>
+                      <span>{p.score || 0}</span>
+                    </div>
+                  ))}
+                  {teamA.length === 0 && (
+                    <div style={{ fontSize: '12px', opacity: 0.5, fontStyle: 'italic' }}>No players</div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', opacity: 0.7, marginBottom: '8px' }}>TEAM RED ({teamB.length})</div>
+                <div style={{ maxHeight: '100px', overflowY: 'auto' }}>
+                  {teamB.map(p => (
+                    <div key={p.id} style={{ 
+                      fontSize: '13px', 
+                      padding: '4px 8px',
+                      backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                      borderRadius: '4px',
+                      marginBottom: '4px',
+                      display: 'flex',
+                      justifyContent: 'space-between'
+                    }}>
+                      <span>{p.name}</span>
+                      <span>{p.score || 0}</span>
+                    </div>
+                  ))}
+                  {teamB.length === 0 && (
+                    <div style={{ fontSize: '12px', opacity: 0.5, fontStyle: 'italic' }}>No players</div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {gameStatus === 'playing' && (
+                <button
+                  onClick={handleEndGame}
+                  style={{
+                    width: '100%',
+                    padding: '15px',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Icon icon="mdi:stop" style={{ marginRight: '8px' }} />
+                  End Battle
+                </button>
+              )}
+              
+              <button
+                onClick={() => setViewState('lobby')}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '14px',
+                  backgroundColor: 'transparent',
+                  color: 'white',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon icon="mdi:arrow-left" style={{ marginRight: '8px' }} />
+                Back to Lobby
+              </button>
+            </div>
+            
+            <div style={{
+              marginTop: '15px',
+              padding: '10px',
+              backgroundColor: gameStatus === 'playing' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+              borderRadius: '8px',
+              textAlign: 'center',
+              fontSize: '14px',
+            }}>
+              <span style={{ 
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: gameStatus === 'playing' ? '#22c55e' : '#f59e0b',
+                marginRight: '8px',
+                animation: 'pulse 1.5s infinite',
+              }} />
+              {gameStatus === 'playing' ? 'Battle in Progress' : 'Battle Ended'}
+            </div>
+          </div>
+        )}
+        
+        <style>{`
+          @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
+        `}</style>
+      </div>
+    )
+  }
+
+  // ========== RENDER FORM/CREATING/LOBBY VIEWS ==========
   return (
     <div
       style={{
@@ -283,7 +815,6 @@ export default function BattleMode() {
           transition: 'transform 0.5s ease, opacity 0.5s ease',
         }}
       >
-        {/* Back button */}
         <button
           onClick={handleBackToAdmin}
           style={{
@@ -307,7 +838,6 @@ export default function BattleMode() {
           <span>Back</span>
         </button>
 
-        {/* Close button */}
         <button
           onClick={handleBackToAdmin}
           style={{
@@ -330,7 +860,6 @@ export default function BattleMode() {
           <Icon icon="mdi:close" style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }} />
         </button>
 
-        {/* Battle Mode Icon */}
         <div
           style={{
             width: '64px',
@@ -347,7 +876,6 @@ export default function BattleMode() {
           />
         </div>
 
-        {/* Title */}
         <h1 style={{ 
           fontSize: FONT_SIZES.xl, 
           fontWeight: FONT_WEIGHTS.semibold, 
@@ -365,18 +893,11 @@ export default function BattleMode() {
         )}
       </div>
 
-      {/* Content Area */}
       <div style={{ padding: `${SPACING[6]} ${SPACING[10]} ${SPACING[16]}` }}>
         
         {/* Form View */}
         {viewState === 'form' && (
-          <div
-            style={{
-              maxWidth: COMPONENT_SIZES.formCard.maxWidth,
-              margin: '0 auto',
-            }}
-          >
-            {/* Upload Section */}
+          <div style={{ maxWidth: COMPONENT_SIZES.formCard.maxWidth, margin: '0 auto' }}>
             <div
               style={{
                 backgroundColor: COLORS.white,
@@ -451,7 +972,6 @@ export default function BattleMode() {
               </div>
             </div>
 
-            {/* Quiz Configuration Form */}
             <div
               style={{
                 display: 'grid',
@@ -460,7 +980,6 @@ export default function BattleMode() {
                 marginBottom: SPACING[6],
               }}
             >
-              {/* Subject */}
               <div>
                 <label style={labelStyle}>Subject *</label>
                 <select
@@ -475,7 +994,6 @@ export default function BattleMode() {
                 </select>
               </div>
 
-              {/* Grade Level */}
               <div>
                 <label style={labelStyle}>Grade Level *</label>
                 <select
@@ -490,7 +1008,6 @@ export default function BattleMode() {
                 </select>
               </div>
 
-              {/* Number of Questions */}
               <div>
                 <label style={labelStyle}>Number of Questions</label>
                 <select
@@ -505,7 +1022,6 @@ export default function BattleMode() {
               </div>
             </div>
 
-            {/* Topic Input */}
             <div style={{ marginBottom: SPACING[4] }}>
               <label style={labelStyle}>Topic *</label>
               <input
@@ -517,7 +1033,6 @@ export default function BattleMode() {
               />
             </div>
 
-            {/* Additional Details */}
             <div style={{ marginBottom: SPACING[6] }}>
               <label style={labelStyle}>Additional Details (optional)</label>
               <textarea
@@ -532,7 +1047,6 @@ export default function BattleMode() {
               />
             </div>
 
-            {/* Create Button */}
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <button
                 onClick={handleCreateQuiz}
@@ -596,13 +1110,7 @@ export default function BattleMode() {
 
         {/* Lobby View */}
         {viewState === 'lobby' && gameCode && (
-          <div
-            style={{
-              maxWidth: COMPONENT_SIZES.formCard.maxWidth,
-              margin: '0 auto',
-            }}
-          >
-            {/* Quiz Summary */}
+          <div style={{ maxWidth: COMPONENT_SIZES.formCard.maxWidth, margin: '0 auto' }}>
             {generatedQuestions.length > 0 && (
               <div
                 style={{
@@ -629,7 +1137,6 @@ export default function BattleMode() {
               </div>
             )}
 
-            {/* Game Code Display */}
             <div
               style={{
                 backgroundColor: 'rgb(249, 250, 251)',
@@ -665,11 +1172,10 @@ export default function BattleMode() {
                 color: COLORS.baseText,
                 margin: `${SPACING[3]} 0 0 0`,
               }}>
-                Students can join at <strong>quizizz.com/join</strong>
+                Students can join at <strong>localhost:5173/join</strong>
               </p>
             </div>
 
-            {/* Teams Display */}
             <div
               style={{
                 display: 'grid',
@@ -678,7 +1184,6 @@ export default function BattleMode() {
                 marginBottom: SPACING[8],
               }}
             >
-              {/* Team A */}
               <div
                 style={{
                   backgroundColor: 'rgba(59, 130, 246, 0.05)',
@@ -727,7 +1232,6 @@ export default function BattleMode() {
                 </p>
               </div>
 
-              {/* Team B */}
               <div
                 style={{
                   backgroundColor: 'rgba(239, 68, 68, 0.05)',
@@ -777,7 +1281,6 @@ export default function BattleMode() {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: SPACING[4] }}>
               <button
                 onClick={handleBackToAdmin}
@@ -826,14 +1329,13 @@ export default function BattleMode() {
                 textAlign: 'center',
                 marginTop: SPACING[3],
               }}>
-                Need at least 1 player in each team to start
+                Need at least 1 player to start
               </p>
             )}
           </div>
         )}
       </div>
 
-      {/* Help Button */}
       <button
         style={{
           position: 'fixed',
@@ -856,7 +1358,6 @@ export default function BattleMode() {
         <Icon icon="mdi:help" style={{ width: ICON_SIZES['2xl'], height: ICON_SIZES['2xl'] }} />
       </button>
 
-      {/* CSS Animation for spinner */}
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
