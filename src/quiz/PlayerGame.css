@@ -143,6 +143,24 @@
   justify-content: center;
   padding: 60px 40px 40px;
   min-height: 35vh;
+  position: relative;
+}
+
+.question-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('../assets/question-background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.5;
+  z-index: 0;
+}
+
+.question-section > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Question number badge */
@@ -209,7 +227,7 @@
   flex: 1;
   background: rgba(20, 5, 15, 0.6);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 40px;
+  padding: 40px 40px 80px 40px;
   display: flex;
   flex-direction: column;
 }
@@ -661,7 +679,7 @@
   }
 
   .answers-section {
-    padding: 20px;
+    padding: 20px 20px 60px 20px;
   }
 
   .answers-grid {

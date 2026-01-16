@@ -769,6 +769,9 @@ export default function BattleMode() {
                     border: 'none',
                     borderRadius: '8px',
                     cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
                   <Icon icon="mdi:stop" style={{ marginRight: '8px' }} />
@@ -787,6 +790,9 @@ export default function BattleMode() {
                   border: '1px solid rgba(255,255,255,0.3)',
                   borderRadius: '8px',
                   cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 <Icon icon="mdi:arrow-left" style={{ marginRight: '8px' }} />
